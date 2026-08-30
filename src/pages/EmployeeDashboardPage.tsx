@@ -18,6 +18,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
   const [activeTab, setActiveTab] = useState<'claims' | 'notifications'>('claims')
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const [expenses, setExpenses] = useState<ExpenseRequest[]>([])
   const [notifications, setNotifications] = useState<SystemNotification[]>([])
@@ -64,6 +65,11 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
     })
   }
 
+  const handleSelectTab = (tab: 'claims' | 'notifications') => {
+    setActiveTab(tab)
+    setIsMobileMenuOpen(false)
+  }
+
   // Filtered claims
   const filteredExpenses = expenses.filter((e) => {
     const matchesSearch =
@@ -93,18 +99,19 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
             <span className="brand-logo-text">Bla Expense Hub</span>
           </Link>
 
+          {/* Desktop Nav Links */}
           <nav className="brand-nav-links">
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'claims' ? 'active' : ''}`}
-              onClick={() => setActiveTab('claims')}
+              onClick={() => handleSelectTab('claims')}
             >
               My Claims ({expenses.length})
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'notifications' ? 'active' : ''}`}
-              onClick={() => setActiveTab('notifications')}
+              onClick={() => handleSelectTab('notifications')}
             >
               Alerts {unreadNotifs > 0 && <span className="brand-badge-counter">{unreadNotifs}</span>}
             </button>
@@ -132,7 +139,76 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
           >
             Sign out
           </button>
+
+          {/* Mobile Hamburger Toggle Button */}
+          <button
+            type="button"
+            className="brand-hamburger-btn"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={isMobileMenuOpen}
+          >
+            {isMobileMenuOpen ? (
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
+          </button>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {isMobileMenuOpen && (
+          <div className="brand-mobile-drawer">
+            <div className="brand-mobile-nav-links">
+              <button
+                type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'claims' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('claims')}
+              >
+                <span>My Claims</span>
+                <span style={{ fontSize: '13px', color: 'var(--steel)' }}>{expenses.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'notifications' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('notifications')}
+              >
+                <span>Disbursement Alerts</span>
+                {unreadNotifs > 0 && <span className="brand-badge-counter">{unreadNotifs}</span>}
+              </button>
+            </div>
+
+            <div className="brand-mobile-actions">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--charcoal)' }}>Staff User:</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)' }}>{currentUser.name}</span>
+              </div>
+              <button
+                type="button"
+                className="brand-btn-cobalt brand-btn-sm"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => {
+                  setIsExpenseModalOpen(true)
+                  setIsMobileMenuOpen(false)
+                }}
+              >
+                + Submit New Claim
+              </button>
+              <button
+                type="button"
+                className="brand-btn-primary brand-btn-sm"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={handleSignOut}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Dashboard Body */}
@@ -160,7 +236,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
             <button
               type="button"
               className="brand-btn-cobalt"
-              style={{ width: 'auto', padding: '14px 30px' }}
+              style={{ width: 'auto', padding: '12px 28px' }}
               onClick={() => setIsExpenseModalOpen(true)}
             >
               + Submit New Claim
@@ -241,17 +317,17 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
               </div>
 
               {/* Filters */}
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'space-between' }}>
                 <input
                   type="text"
                   placeholder="Search my claims..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="brand-input"
-                  style={{ height: '38px', width: '200px', fontSize: '14px' }}
+                  style={{ height: '38px', minWidth: '180px', flex: '1 1 200px', fontSize: '14px' }}
                 />
 
-                <div className="brand-tabs-list">
+                <div className="brand-tabs-list" style={{ flexWrap: 'nowrap' }}>
                   <button
                     type="button"
                     className={`brand-tab-btn ${filterStatus === 'all' ? 'active' : ''}`}
@@ -318,7 +394,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
                           </div>
                         </td>
                         <td>
-                          <div style={{ maxWidth: '340px' }}>
+                          <div style={{ maxWidth: '300px' }}>
                             <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink-deep)', display: 'block' }}>
                               {exp.expenseType}
                             </span>
@@ -412,18 +488,18 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
                   <div
                     key={n.id}
                     style={{
-                      padding: '16px 20px',
+                      padding: '14px 18px',
                       backgroundColor: 'var(--surface-soft)',
                       border: '1px solid var(--surface-hairline)',
                       borderRadius: 'var(--radius-lg)',
                       display: 'flex',
                       alignItems: 'flex-start',
                       justifyContent: 'space-between',
-                      gap: '16px',
+                      gap: '14px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-                      <span style={{ fontSize: '16px', marginTop: '2px', color: 'var(--color-primary)' }}>●</span>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      <span style={{ fontSize: '14px', marginTop: '2px', color: 'var(--color-primary)' }}>●</span>
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)' }}>
                           {n.title} {!n.read && <span style={{ color: 'var(--color-primary)', marginLeft: '6px' }}>[NEW]</span>}

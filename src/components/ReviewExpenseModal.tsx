@@ -120,6 +120,8 @@ export const ReviewExpenseModal: React.FC<ReviewExpenseModalProps> = ({
               backgroundColor: 'var(--surface-canvas)',
               border: '1px solid var(--surface-hairline)',
               borderRadius: 'var(--radius-lg)',
+              flexWrap: 'wrap',
+              gap: '8px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -172,7 +174,7 @@ export const ReviewExpenseModal: React.FC<ReviewExpenseModalProps> = ({
             Cancel
           </button>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
               type="button"
               className="brand-btn-secondary brand-btn-sm"

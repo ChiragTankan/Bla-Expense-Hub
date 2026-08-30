@@ -19,6 +19,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
   const [activeTab, setActiveTab] = useState<'applications' | 'employees' | 'notifications'>('applications')
   const [appFilter, setAppFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const [expenses, setExpenses] = useState<ExpenseRequest[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -68,6 +69,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
     })
   }
 
+  const handleSelectTab = (tab: 'applications' | 'employees' | 'notifications') => {
+    setActiveTab(tab)
+    setIsMobileMenuOpen(false)
+  }
+
   // Filtered Applications
   const filteredExpenses = expenses.filter((e) => {
     const matchesSearch =
@@ -99,25 +105,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
             <span className="brand-logo-text">Bla Expense Hub</span>
           </Link>
 
+          {/* Desktop Nav Links */}
           <nav className="brand-nav-links">
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'applications' ? 'active' : ''}`}
-              onClick={() => setActiveTab('applications')}
+              onClick={() => handleSelectTab('applications')}
             >
               Applications {pendingCount > 0 && <span className="brand-badge-counter">{pendingCount}</span>}
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'employees' ? 'active' : ''}`}
-              onClick={() => setActiveTab('employees')}
+              onClick={() => handleSelectTab('employees')}
             >
               Employees ({totalEmployeesCount})
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'notifications' ? 'active' : ''}`}
-              onClick={() => setActiveTab('notifications')}
+              onClick={() => handleSelectTab('notifications')}
             >
               Notifications {unreadNotifs > 0 && <span className="brand-badge-counter">{unreadNotifs}</span>}
             </button>
@@ -146,7 +153,84 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
           >
             Sign out
           </button>
+
+          {/* Mobile Hamburger Toggle Button */}
+          <button
+            type="button"
+            className="brand-hamburger-btn"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={isMobileMenuOpen}
+          >
+            {isMobileMenuOpen ? (
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
+          </button>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {isMobileMenuOpen && (
+          <div className="brand-mobile-drawer">
+            <div className="brand-mobile-nav-links">
+              <button
+                type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'applications' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('applications')}
+              >
+                <span>Applications</span>
+                {pendingCount > 0 && <span className="brand-badge-counter">{pendingCount}</span>}
+              </button>
+              <button
+                type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'employees' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('employees')}
+              >
+                <span>Employees Directory</span>
+                <span style={{ fontSize: '13px', color: 'var(--steel)' }}>{totalEmployeesCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'notifications' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('notifications')}
+              >
+                <span>Notifications</span>
+                {unreadNotifs > 0 && <span className="brand-badge-counter">{unreadNotifs}</span>}
+              </button>
+            </div>
+
+            <div className="brand-mobile-actions">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--charcoal)' }}>Logged in as:</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)' }}>{currentUser.name}</span>
+              </div>
+              <button
+                type="button"
+                className="brand-btn-secondary brand-btn-sm"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => {
+                  storageService.exportCredentialsJson()
+                  setIsMobileMenuOpen(false)
+                }}
+              >
+                Export JSON Backup
+              </button>
+              <button
+                type="button"
+                className="brand-btn-primary brand-btn-sm"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={handleSignOut}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Container */}
@@ -252,17 +336,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
               </div>
 
               {/* Filters & Search */}
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'space-between' }}>
                 <input
                   type="text"
                   placeholder="Search applications..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="brand-input"
-                  style={{ height: '38px', width: '220px', fontSize: '14px' }}
+                  style={{ height: '38px', minWidth: '180px', flex: '1 1 200px', fontSize: '14px' }}
                 />
 
-                <div className="brand-tabs-list">
+                <div className="brand-tabs-list" style={{ flexWrap: 'nowrap' }}>
                   <button
                     type="button"
                     className={`brand-tab-btn ${appFilter === 'all' ? 'active' : ''}`}
@@ -334,7 +418,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                           </div>
                         </td>
                         <td>
-                          <div style={{ maxWidth: '320px' }}>
+                          <div style={{ maxWidth: '280px' }}>
                             <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink-deep)', display: 'block' }}>
                               {exp.expenseType}
                             </span>
@@ -405,7 +489,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                 </p>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="brand-btn-secondary brand-btn-sm"
@@ -454,7 +538,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                       </td>
                       <td>{u.department || 'General Operations'}</td>
                       <td>
-                        <code style={{ fontSize: '13px', color: 'var(--ink-deep)', backgroundColor: 'var(--surface-soft)', padding: '4px 10px', borderRadius: 'var(--radius-sm)' }}>
+                        <code style={{ fontSize: '13px', color: 'var(--ink-deep)', backgroundColor: 'var(--surface-soft)', padding: '4px 8px', borderRadius: 'var(--radius-sm)' }}>
                           {u.password}
                         </code>
                       </td>
@@ -504,18 +588,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                   <div
                     key={n.id}
                     style={{
-                      padding: '16px 20px',
+                      padding: '14px 18px',
                       backgroundColor: 'var(--surface-soft)',
                       border: '1px solid var(--surface-hairline)',
                       borderRadius: 'var(--radius-lg)',
                       display: 'flex',
                       alignItems: 'flex-start',
                       justifyContent: 'space-between',
-                      gap: '16px',
+                      gap: '14px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-                      <span style={{ fontSize: '16px', marginTop: '2px', color: 'var(--color-primary)' }}>●</span>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      <span style={{ fontSize: '14px', marginTop: '2px', color: 'var(--color-primary)' }}>●</span>
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)' }}>
                           {n.title} {!n.read && <span style={{ color: 'var(--color-primary)', marginLeft: '6px' }}>[NEW]</span>}
