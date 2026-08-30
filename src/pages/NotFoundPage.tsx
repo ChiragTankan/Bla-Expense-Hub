@@ -1,32 +1,26 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import '../styles/design-tokens.css'
 
 export const NotFoundPage: React.FC = () => {
   return (
-    <div className="notfound-container">
-      <div className="notfound-card">
-        <div className="notfound-badge">404</div>
-        <h1 className="notfound-title">Page Not Found</h1>
-        <p className="notfound-description">
-          Sorry, we couldn't find the page you're looking for. It might have been removed, renamed, or doesn't exist.
+    <div className="brand-page-wrapper" style={{ justifyContent: 'center', alignItems: 'center', padding: '40px 20px' }}>
+      <div className="brand-section-card" style={{ maxWidth: '520px', width: '100%', textAlign: 'center', padding: '48px 36px', borderRadius: 'var(--radius-xxxl)' }}>
+        <div className="brand-auth-badge" style={{ justifyContent: 'center', marginBottom: '16px' }}>
+          <span>●</span> 404 Status
+        </div>
+        <h1 className="brand-auth-title" style={{ fontSize: '32px', marginBottom: '12px' }}>
+          Page Not Located
+        </h1>
+        <p className="brand-auth-subtitle" style={{ marginBottom: '32px' }}>
+          The requested system resource or page does not exist or has been relocated.
         </p>
-        <div className="notfound-actions">
-          <Link to="/login" className="notfound-btn">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="btn-icon"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-              />
-            </svg>
+        <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link to="/login" className="brand-btn-primary" style={{ width: 'auto', padding: '14px 28px' }}>
             Return to Login
+          </Link>
+          <Link to="/dashboard" className="brand-btn-secondary" style={{ width: 'auto', padding: '12px 28px' }}>
+            Open Dashboard
           </Link>
         </div>
       </div>
