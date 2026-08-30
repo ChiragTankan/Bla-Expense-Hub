@@ -1,0 +1,636 @@
+/* Design System Tokens */
+:root {
+  /* Canvas & Surfaces */
+  --surface-canvas: #fffaf0;
+  --surface-soft: #faf5e8;
+  --surface-card: #f5f0e0;
+  --surface-strong: #ebe6d6;
+  --surface-hairline: #e5e5e5;
+  --surface-dark: #0a1a1a;
+  --surface-dark-elevated: #1a2a2a;
+
+  /* Ink & Typography */
+  --ink-primary: #0a0a0a;
+  --ink-body-strong: #1a1a1a;
+  --ink-body: #3a3a3a;
+  --ink-muted: #6a6a6a;
+  --ink-muted-soft: #9a9a9a;
+  --ink-on-primary: #ffffff;
+  --ink-on-dark: #ffffff;
+
+  /* Brand Colors */
+  --brand-primary: #0a0a0a;
+  --brand-pink: #ff4d8b;
+  --brand-teal: #1a3a3a;
+  --brand-lavender: #b8a4ed;
+  --brand-peach: #ffb084;
+  --brand-ochre: #e8b94a;
+  --brand-mint: #a4d4c5;
+  --brand-coral: #ff6b5a;
+
+  /* Semantic */
+  --state-success: #22c55e;
+  --state-warning: #f59e0b;
+  --state-error: #ef4444;
+
+  /* Border Radii */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 9999px;
+
+  /* Spacing */
+  --space-xxs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+  --space-section: 96px;
+
+  /* Font Stack */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Page Floor */
+.brand-page-wrapper {
+  min-height: 100vh;
+  background-color: var(--surface-canvas);
+  color: var(--ink-body);
+  font-family: var(--font-family);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Top Navigation */
+.brand-nav {
+  height: 64px;
+  background-color: var(--surface-canvas);
+  border-bottom: 1px solid var(--surface-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.brand-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--ink-primary);
+}
+
+.brand-logo-icon {
+  width: 28px;
+  height: 28px;
+  background-color: var(--brand-primary);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.brand-logo-text {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--ink-primary);
+}
+
+.brand-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.brand-nav-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-body);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.brand-nav-link:hover {
+  color: var(--ink-primary);
+  text-decoration: none;
+}
+
+.brand-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Main Split Layout */
+.brand-main-container {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 48px 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+@media (max-width: 960px) {
+  .brand-main-container {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    padding: 32px 16px;
+  }
+}
+
+/* Left Form Container */
+.brand-auth-pane {
+  max-width: 440px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.brand-auth-header {
+  margin-bottom: 28px;
+}
+
+.brand-auth-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-card);
+  color: var(--ink-body-strong);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  border: 1px solid var(--surface-hairline);
+}
+
+.brand-auth-title {
+  font-size: 36px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  color: var(--ink-primary);
+  margin-bottom: 10px;
+}
+
+.brand-auth-subtitle {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+/* SSO / Secondary Buttons */
+.brand-sso-btn {
+  width: 100%;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-hairline);
+  background-color: var(--surface-canvas);
+  color: var(--ink-primary);
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  text-decoration: none;
+}
+
+.brand-sso-btn:hover {
+  background-color: var(--surface-soft);
+  border-color: #d1cdc0;
+}
+
+.brand-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  gap: 12px;
+}
+
+.brand-divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: var(--surface-hairline);
+}
+
+.brand-divider-text {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-muted-soft);
+}
+
+/* Form Styles */
+.brand-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.brand-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.brand-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brand-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-primary);
+}
+
+.brand-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.brand-link:hover {
+  color: var(--ink-body-strong);
+}
+
+.brand-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.brand-input {
+  width: 100%;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-hairline);
+  background-color: var(--surface-canvas);
+  color: var(--ink-primary);
+  font-family: var(--font-family);
+  font-size: 15px;
+  padding: 0 16px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.brand-input:focus {
+  border-color: var(--ink-primary);
+}
+
+.brand-input::placeholder {
+  color: var(--ink-muted-soft);
+}
+
+.brand-input-action {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.brand-input-action:hover {
+  color: var(--ink-primary);
+}
+
+.brand-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-body);
+  cursor: pointer;
+  user-select: none;
+}
+
+.brand-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xs);
+  accent-color: var(--brand-primary);
+  cursor: pointer;
+}
+
+.brand-btn-primary {
+  width: 100%;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: var(--brand-primary);
+  color: var(--ink-on-primary);
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.15s ease;
+}
+
+.brand-btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.brand-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.brand-auth-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+/* Right Showcase Card */
+.brand-showcase-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.brand-feature-card-lavender {
+  background-color: var(--brand-lavender);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  color: var(--ink-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.brand-feature-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brand-feature-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background-color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  width: fit-content;
+  color: var(--ink-primary);
+}
+
+.brand-feature-title {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  color: var(--ink-primary);
+}
+
+.brand-feature-desc {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-body-strong);
+}
+
+/* Product UI Mockup inside Feature Card */
+.brand-product-mockup {
+  background-color: var(--surface-canvas);
+  border: 1px solid var(--surface-hairline);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.brand-mockup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--surface-hairline);
+}
+
+.brand-mockup-agent-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mockup-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background-color: var(--brand-peach);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-primary);
+}
+
+.brand-mockup-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.brand-mockup-status {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--state-success);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.brand-mockup-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--state-success);
+}
+
+.brand-mockup-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brand-mockup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.brand-mockup-col-primary {
+  font-weight: 500;
+  color: var(--ink-primary);
+}
+
+.brand-mockup-col-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background-color: #ffffff;
+  color: var(--ink-body-strong);
+  border: 1px solid var(--surface-hairline);
+}
+
+/* Secondary Testimonial Card */
+.brand-testimonial-card {
+  background-color: var(--surface-card);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--surface-hairline);
+}
+
+.brand-testimonial-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-body-strong);
+  font-style: italic;
+}
+
+.brand-testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-author-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--brand-mint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.brand-author-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-author-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.brand-author-role {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+/* Warm Cream Footer */
+.brand-footer {
+  background-color: var(--surface-soft);
+  border-top: 1px solid var(--surface-hairline);
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ink-muted);
+  box-sizing: border-box;
+}
+
+.brand-footer-links {
+  display: flex;
+  gap: 20px;
+}
+
+.brand-footer-link {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+
+.brand-footer-link:hover {
+  color: var(--ink-primary);
+  text-decoration: underline;
+}
+
+/* Notification banner */
+.brand-alert {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.brand-alert-error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.brand-alert-success {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}

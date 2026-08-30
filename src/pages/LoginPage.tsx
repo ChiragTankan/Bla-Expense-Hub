@@ -187,6 +187,12 @@ export const LoginPage: React.FC = () => {
               Create an account
             </Link>
           </p>
+          <p style={{ marginTop: '8px', fontSize: '13px' }}>
+            Looking for the new design?{' '}
+            <Link to="/login-v2" className="auth-link">
+              View Design System Login
+            </Link>
+          </p>
         </div>
       </div>
     </div>
