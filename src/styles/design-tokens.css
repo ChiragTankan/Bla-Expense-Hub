@@ -125,7 +125,7 @@
 .brand-nav-left {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 24px;
 }
 
 .brand-logo-mark {
@@ -162,22 +162,23 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  overflow-x: auto;
 }
 
 .brand-nav-link {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.14px;
   color: var(--charcoal);
   text-decoration: none;
-  padding: 8px 16px;
+  padding: 7px 14px;
   border-radius: var(--radius-full);
   border: none;
   background: transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   transition: all 0.2s ease;
   white-space: nowrap;
   font-family: var(--font-family);
@@ -198,7 +199,7 @@
 .brand-nav-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .brand-user-role-badge {
@@ -216,9 +217,9 @@
 }
 
 .brand-badge-counter {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  padding: 2px 7px;
+  padding: 2px 6px;
   background-color: var(--color-primary);
   color: #ffffff;
   border-radius: var(--radius-full);
@@ -227,8 +228,8 @@
 /* Mobile Hamburger Toggle Button */
 .brand-hamburger-btn {
   display: none;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--surface-hairline);
   background-color: var(--surface-canvas);
@@ -716,12 +717,6 @@
   border-bottom: 1px solid var(--surface-hairline-soft);
 }
 
-.brand-mockup-agent-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .brand-mockup-avatar {
   width: 32px;
   height: 32px;
@@ -733,29 +728,6 @@
   justify-content: center;
   font-size: 14px;
   font-weight: 700;
-}
-
-.brand-mockup-name {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
-  color: var(--ink-deep);
-}
-
-.brand-mockup-status {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--state-success);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.brand-mockup-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--radius-circle);
-  background-color: currentColor;
 }
 
 .brand-mockup-table {
@@ -1353,7 +1325,7 @@
   text-decoration: underline;
 }
 
-/* ================= COMPREHENSIVE RESPONSIVE MEDIA QUERIES ================= */
+/* ================= RESPONSIVE MEDIA QUERIES ================= */
 
 /* Tablet & Smaller (< 1024px) */
 @media (max-width: 1023px) {

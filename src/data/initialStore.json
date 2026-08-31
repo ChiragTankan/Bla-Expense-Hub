@@ -1,34 +1,37 @@
 {
-  "version": "2.0.0",
+  "version": "3.0.0",
   "users": [
     {
       "id": "usr-admin-1",
       "name": "Chirag Tankan",
       "email": "chiragtankan@gmail.com",
-      "role": "admin",
       "password": "admin",
-      "department": "Executive & Engineering",
-      "createdAt": "2026-01-01T00:00:00.000Z"
+      "role": "admin",
+      "department": "Executive Leadership",
+      "createdAt": "2026-08-30T00:00:00.000Z"
     },
     {
       "id": "usr-admin-2",
       "name": "Pardeep Sir",
-      "email": "pardeep@enterprise.com",
-      "role": "admin",
+      "email": "pardeepsir@company.com",
       "password": "admin",
+      "role": "admin",
       "department": "Executive Leadership",
-      "createdAt": "2026-01-01T00:00:00.000Z"
+      "createdAt": "2026-08-30T00:00:00.000Z"
     },
     {
       "id": "usr-admin-3",
       "name": "Mayank",
-      "email": "mayank@enterprise.com",
-      "role": "admin",
+      "email": "mayank@company.com",
       "password": "admin",
-      "department": "Operations & Finance",
-      "createdAt": "2026-01-01T00:00:00.000Z"
+      "role": "admin",
+      "department": "Executive Leadership",
+      "createdAt": "2026-08-30T00:00:00.000Z"
     }
   ],
   "expenses": [],
-  "notifications": []
+  "notifications": [],
+  "directMessages": [],
+  "dailyUpdates": [],
+  "adminCalls": []
 }

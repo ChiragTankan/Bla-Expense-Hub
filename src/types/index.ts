@@ -45,6 +45,10 @@ export type NotificationType =
   | 'expense_approved'
   | 'expense_rejected'
   | 'employee_created'
+  | 'direct_message'
+  | 'daily_update'
+  | 'meeting_call'
+  | 'user_mention'
 
 export interface SystemNotification {
   id: string
@@ -55,6 +59,58 @@ export interface SystemNotification {
   timestamp: string
   read: boolean
   linkId?: string
+  senderName?: string
+}
+
+export interface DirectMessage {
+  id: string
+  senderId: string
+  senderName: string
+  senderEmail: string
+  recipientId: string
+  recipientName: string
+  recipientEmail: string
+  content: string
+  timestamp: string
+  read: boolean
+}
+
+export type DailyUpdateTag =
+  | "Today's Focus"
+  | 'Completed'
+  | 'Blocker'
+  | 'General Update'
+
+export interface DailyUpdate {
+  id: string
+  authorId: string
+  authorName: string
+  authorEmail: string
+  authorRole: UserRole
+  authorDepartment: string
+  tag: DailyUpdateTag
+  content: string
+  timestamp: string
+  likes: string[] // User emails who acknowledged
+  mentions?: string[] // User emails tagged via @
+}
+
+export type MeetingPlatform = 'Google Meet' | 'Zoom' | 'Microsoft Teams' | 'Other'
+
+export interface AdminCall {
+  id: string
+  hostId: string
+  hostName: string
+  hostEmail: string
+  hostRole: UserRole
+  title: string
+  description: string
+  meetingUrl: string
+  platform: MeetingPlatform
+  scheduledTime: string
+  status: 'active' | 'scheduled' | 'ended'
+  createdAt: string
+  mentions?: string[]
 }
 
 export interface LocalStoreData {
@@ -62,4 +118,7 @@ export interface LocalStoreData {
   users: User[]
   expenses: ExpenseRequest[]
   notifications: SystemNotification[]
+  directMessages: DirectMessage[]
+  dailyUpdates: DailyUpdate[]
+  adminCalls: AdminCall[]
 }

@@ -5,17 +5,22 @@ import storageService from '../services/storageService'
 import { useAuth } from '../context/AuthContext'
 import { ExpenseModal } from '../components/ExpenseModal'
 import { ReceiptViewerModal } from '../components/ReceiptViewerModal'
+import { DirectMessagesView } from '../components/DirectMessagesView'
+import { DailyUpdatesView } from '../components/DailyUpdatesView'
+import { AdminCallsView } from '../components/AdminCallsView'
 import '../styles/design-tokens.css'
 
 interface EmployeeDashboardPageProps {
   currentUser: User
 }
 
+type EmployeeTabType = 'claims' | 'dms' | 'updates' | 'calls' | 'notifications'
+
 export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ currentUser }) => {
   const navigate = useNavigate()
   const { logout } = useAuth()
 
-  const [activeTab, setActiveTab] = useState<'claims' | 'notifications'>('claims')
+  const [activeTab, setActiveTab] = useState<EmployeeTabType>('claims')
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -23,6 +28,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
   const [expenses, setExpenses] = useState<ExpenseRequest[]>([])
   const [notifications, setNotifications] = useState<SystemNotification[]>([])
   const [actionAlert, setActionAlert] = useState<string | null>(null)
+  const [unreadDMsCount, setUnreadDMsCount] = useState(0)
 
   // Modal states
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
@@ -43,10 +49,19 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
   const loadData = () => {
     setExpenses(storageService.getExpensesByUser(currentUser.email))
     setNotifications(storageService.getNotifications(currentUser.email, currentUser.role))
+    setUnreadDMsCount(storageService.getUnreadDMCountForUser(currentUser.email))
   }
 
   useEffect(() => {
     loadData()
+  }, [])
+
+  // Real-time synchronization
+  useEffect(() => {
+    const unsubscribe = storageService.subscribe(() => {
+      loadData()
+    })
+    return () => unsubscribe()
   }, [])
 
   const handleSignOut = () => {
@@ -65,7 +80,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
     })
   }
 
-  const handleSelectTab = (tab: 'claims' | 'notifications') => {
+  const handleSelectTab = (tab: EmployeeTabType) => {
     setActiveTab(tab)
     setIsMobileMenuOpen(false)
   }
@@ -107,6 +122,27 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
               onClick={() => handleSelectTab('claims')}
             >
               My Claims ({expenses.length})
+            </button>
+            <button
+              type="button"
+              className={`brand-nav-link ${activeTab === 'dms' ? 'active' : ''}`}
+              onClick={() => handleSelectTab('dms')}
+            >
+              DMs {unreadDMsCount > 0 && <span className="brand-badge-counter">{unreadDMsCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={`brand-nav-link ${activeTab === 'updates' ? 'active' : ''}`}
+              onClick={() => handleSelectTab('updates')}
+            >
+              Daily Updates
+            </button>
+            <button
+              type="button"
+              className={`brand-nav-link ${activeTab === 'calls' ? 'active' : ''}`}
+              onClick={() => handleSelectTab('calls')}
+            >
+              Calls
             </button>
             <button
               type="button"
@@ -174,10 +210,32 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
               </button>
               <button
                 type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'dms' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('dms')}
+              >
+                <span>Direct Messages (DMs)</span>
+                {unreadDMsCount > 0 && <span className="brand-badge-counter">{unreadDMsCount}</span>}
+              </button>
+              <button
+                type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'updates' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('updates')}
+              >
+                <span>Daily Updates (Group)</span>
+              </button>
+              <button
+                type="button"
+                className={`brand-mobile-nav-link ${activeTab === 'calls' ? 'active' : ''}`}
+                onClick={() => handleSelectTab('calls')}
+              >
+                <span>Admin & Team Calls</span>
+              </button>
+              <button
+                type="button"
                 className={`brand-mobile-nav-link ${activeTab === 'notifications' ? 'active' : ''}`}
                 onClick={() => handleSelectTab('notifications')}
               >
-                <span>Disbursement Alerts</span>
+                <span>Alerts & Mentions</span>
                 {unreadNotifs > 0 && <span className="brand-badge-counter">{unreadNotifs}</span>}
               </button>
             </div>
@@ -220,247 +278,259 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
           </div>
         )}
 
-        {/* Hero Greeting Band */}
-        <section className="brand-dash-hero">
-          <div className="brand-dash-greeting">
-            <div className="brand-auth-badge">
-              <span>●</span> {currentUser.department?.toUpperCase() || 'OPERATIONS'} • REIMBURSEMENT PORTAL
-            </div>
-            <h1 className="brand-dash-title">Welcome, {currentUser.name}</h1>
-            <p className="brand-dash-subtitle">
-              Submit your business expenditures, attach supporting invoices, and track payment disbursements.
-            </p>
-          </div>
+        {/* TAB: Direct Messages */}
+        {activeTab === 'dms' && <DirectMessagesView currentUser={currentUser} />}
 
-          <div className="brand-dash-actions">
-            <button
-              type="button"
-              className="brand-btn-cobalt"
-              style={{ width: 'auto', padding: '12px 28px' }}
-              onClick={() => setIsExpenseModalOpen(true)}
-            >
-              + Submit New Claim
-            </button>
-          </div>
-        </section>
+        {/* TAB: Daily Updates */}
+        {activeTab === 'updates' && <DailyUpdatesView currentUser={currentUser} />}
 
-        {/* 4-Up Metrics Grid */}
-        <section className="brand-metrics-grid">
-          {/* Card 1 */}
-          <div className="brand-metric-card">
-            <div className="brand-metric-top">
-              <span className="brand-metric-label">Total Claimed</span>
-              <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="brand-metric-value-row">
-              <div className="brand-metric-val">₹{totalClaimed.toLocaleString()}</div>
-              <span className="brand-metric-trend">{expenses.length} Entries</span>
-            </div>
-          </div>
+        {/* TAB: Admin Calls */}
+        {activeTab === 'calls' && <AdminCallsView currentUser={currentUser} />}
 
-          {/* Card 2 */}
-          <div className="brand-metric-card">
-            <div className="brand-metric-top">
-              <span className="brand-metric-label">Pending Review</span>
-              <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="brand-metric-value-row">
-              <div className="brand-metric-val">{pendingCount}</div>
-              <span className="brand-metric-trend">Awaiting Audit</span>
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="brand-metric-card">
-            <div className="brand-metric-top">
-              <span className="brand-metric-label">Approved & Disbursed</span>
-              <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="brand-metric-value-row">
-              <div className="brand-metric-val">₹{approvedTotal.toLocaleString()}</div>
-              <span className="brand-metric-trend">Authorized</span>
-            </div>
-          </div>
-
-          {/* Card 4 */}
-          <div className="brand-metric-card">
-            <div className="brand-metric-top">
-              <span className="brand-metric-label">Rejected Claims</span>
-              <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="brand-metric-value-row">
-              <div className="brand-metric-val">
-                {expenses.filter((e) => e.status === 'rejected').length}
-              </div>
-              <span className="brand-metric-trend">History</span>
-            </div>
-          </div>
-        </section>
-
-        {/* TAB 1: Claims History */}
+        {/* TAB: My Claims */}
         {activeTab === 'claims' && (
-          <section className="brand-section-card">
-            <div className="brand-section-header">
-              <div className="brand-section-title-group">
-                <h2 className="brand-section-title">My Submitted Applications</h2>
-                <p className="brand-section-desc">
-                  Verification status of submitted claims, invoice attachments, and administrator remarks.
+          <>
+            {/* Hero Greeting Band */}
+            <section className="brand-dash-hero">
+              <div className="brand-dash-greeting">
+                <div className="brand-auth-badge">
+                  <span>●</span> {currentUser.department?.toUpperCase() || 'OPERATIONS'} • REIMBURSEMENT PORTAL
+                </div>
+                <h1 className="brand-dash-title">Welcome, {currentUser.name}</h1>
+                <p className="brand-dash-subtitle">
+                  Submit your business expenditures, attach supporting invoices, and track payment disbursements.
                 </p>
               </div>
 
-              {/* Filters */}
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'space-between' }}>
-                <input
-                  type="text"
-                  placeholder="Search my claims..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="brand-input"
-                  style={{ height: '38px', minWidth: '180px', flex: '1 1 200px', fontSize: '14px' }}
-                />
+              <div className="brand-dash-actions">
+                <button
+                  type="button"
+                  className="brand-btn-cobalt"
+                  style={{ width: 'auto', padding: '12px 28px' }}
+                  onClick={() => setIsExpenseModalOpen(true)}
+                >
+                  + Submit New Claim
+                </button>
+              </div>
+            </section>
 
-                <div className="brand-tabs-list" style={{ flexWrap: 'nowrap' }}>
-                  <button
-                    type="button"
-                    className={`brand-tab-btn ${filterStatus === 'all' ? 'active' : ''}`}
-                    onClick={() => setFilterStatus('all')}
-                  >
-                    All ({expenses.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`brand-tab-btn ${filterStatus === 'pending' ? 'active' : ''}`}
-                    onClick={() => setFilterStatus('pending')}
-                  >
-                    Pending ({pendingCount})
-                  </button>
-                  <button
-                    type="button"
-                    className={`brand-tab-btn ${filterStatus === 'approved' ? 'active' : ''}`}
-                    onClick={() => setFilterStatus('approved')}
-                  >
-                    Approved
-                  </button>
-                  <button
-                    type="button"
-                    className={`brand-tab-btn ${filterStatus === 'rejected' ? 'active' : ''}`}
-                    onClick={() => setFilterStatus('rejected')}
-                  >
-                    Rejected
-                  </button>
+            {/* 4-Up Metrics Grid */}
+            <section className="brand-metrics-grid">
+              {/* Card 1 */}
+              <div className="brand-metric-card">
+                <div className="brand-metric-top">
+                  <span className="brand-metric-label">Total Claimed</span>
+                  <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="brand-metric-value-row">
+                  <div className="brand-metric-val">₹{totalClaimed.toLocaleString()}</div>
+                  <span className="brand-metric-trend">{expenses.length} Entries</span>
                 </div>
               </div>
-            </div>
 
-            {/* Table */}
-            <div className="brand-table-wrapper">
-              <table className="brand-data-table">
-                <thead>
-                  <tr>
-                    <th>Date & Time</th>
-                    <th>Category & Motive</th>
-                    <th>Claimed Amount</th>
-                    <th>Invoice / Receipt</th>
-                    <th>Status</th>
-                    <th>Administrator Remarks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredExpenses.length === 0 ? (
+              {/* Card 2 */}
+              <div className="brand-metric-card">
+                <div className="brand-metric-top">
+                  <span className="brand-metric-label">Pending Review</span>
+                  <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="brand-metric-value-row">
+                  <div className="brand-metric-val">{pendingCount}</div>
+                  <span className="brand-metric-trend">Awaiting Audit</span>
+                </div>
+              </div>
+
+              {/* Card 3 */}
+              <div className="brand-metric-card">
+                <div className="brand-metric-top">
+                  <span className="brand-metric-label">Approved & Disbursed</span>
+                  <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="brand-metric-value-row">
+                  <div className="brand-metric-val">₹{approvedTotal.toLocaleString()}</div>
+                  <span className="brand-metric-trend">Authorized</span>
+                </div>
+              </div>
+
+              {/* Card 4 */}
+              <div className="brand-metric-card">
+                <div className="brand-metric-top">
+                  <span className="brand-metric-label">Rejected Claims</span>
+                  <svg className="brand-metric-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="brand-metric-value-row">
+                  <div className="brand-metric-val">
+                    {expenses.filter((e) => e.status === 'rejected').length}
+                  </div>
+                  <span className="brand-metric-trend">History</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Claims Table */}
+            <section className="brand-section-card">
+              <div className="brand-section-header">
+                <div className="brand-section-title-group">
+                  <h2 className="brand-section-title">My Submitted Applications</h2>
+                  <p className="brand-section-desc">
+                    Verification status of submitted claims, invoice attachments, and administrator remarks.
+                  </p>
+                </div>
+
+                {/* Filters */}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'space-between' }}>
+                  <input
+                    type="text"
+                    placeholder="Search my claims..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="brand-input"
+                    style={{ height: '38px', minWidth: '180px', flex: '1 1 200px', fontSize: '14px' }}
+                  />
+
+                  <div className="brand-tabs-list" style={{ flexWrap: 'nowrap' }}>
+                    <button
+                      type="button"
+                      className={`brand-tab-btn ${filterStatus === 'all' ? 'active' : ''}`}
+                      onClick={() => setFilterStatus('all')}
+                    >
+                      All ({expenses.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`brand-tab-btn ${filterStatus === 'pending' ? 'active' : ''}`}
+                      onClick={() => setFilterStatus('pending')}
+                    >
+                      Pending ({pendingCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`brand-tab-btn ${filterStatus === 'approved' ? 'active' : ''}`}
+                      onClick={() => setFilterStatus('approved')}
+                    >
+                      Approved
+                    </button>
+                    <button
+                      type="button"
+                      className={`brand-tab-btn ${filterStatus === 'rejected' ? 'active' : ''}`}
+                      onClick={() => setFilterStatus('rejected')}
+                    >
+                      Rejected
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="brand-table-wrapper">
+                <table className="brand-data-table">
+                  <thead>
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: 'var(--slate)' }}>
-                        {expenses.length === 0
-                          ? 'No expense applications filed yet. Click "+ Submit New Claim" above to file an expense.'
-                          : 'No claims matching the selected filter/search criteria.'}
-                      </td>
+                      <th>Date & Time</th>
+                      <th>Category & Motive</th>
+                      <th>Claimed Amount</th>
+                      <th>Invoice / Receipt</th>
+                      <th>Status</th>
+                      <th>Administrator Remarks</th>
                     </tr>
-                  ) : (
-                    filteredExpenses.map((exp) => (
-                      <tr key={exp.id}>
-                        <td>
-                          <div style={{ fontWeight: 600, color: 'var(--ink-deep)' }}>
-                            {new Date(exp.dateTime).toLocaleDateString()}
-                          </div>
-                          <div style={{ fontSize: '12px', color: 'var(--steel)' }}>
-                            {new Date(exp.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ maxWidth: '300px' }}>
-                            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink-deep)', display: 'block' }}>
-                              {exp.expenseType}
-                            </span>
-                            <span style={{ fontSize: '13px', color: 'var(--charcoal)', lineHeight: '1.4' }}>
-                              {exp.motive}
-                            </span>
-                          </div>
-                        </td>
-                        <td>
-                          <strong style={{ fontSize: '15px', color: 'var(--ink-deep)' }}>
-                            ₹{exp.amount.toLocaleString()}
-                          </strong>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="brand-link"
-                            onClick={() =>
-                              handleOpenReceipt(
-                                exp.receiptUrl,
-                                exp.receiptName,
-                                `${exp.expenseType} - ₹${exp.amount.toLocaleString()}`,
-                                exp.amount
-                              )
-                            }
-                          >
-                            Inspect Receipt ↗
-                          </button>
-                        </td>
-                        <td>
-                          <span className={`brand-status-pill ${exp.status}`}>
-                            <span className="brand-status-dot" />
-                            {exp.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td>
-                          {exp.adminNote ? (
-                            <div style={{ fontSize: '13px', color: 'var(--ink)' }}>
-                              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--charcoal)' }}>
-                                [{exp.reviewedBy || 'Admin'}]:
-                              </span>{' '}
-                              "{exp.adminNote}"
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '13px', color: 'var(--steel)', fontStyle: 'italic' }}>
-                              Awaiting administrator review
-                            </span>
-                          )}
+                  </thead>
+                  <tbody>
+                    {filteredExpenses.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: 'var(--slate)' }}>
+                          {expenses.length === 0
+                            ? 'No expense applications filed yet. Click "+ Submit New Claim" above to file an expense.'
+                            : 'No claims matching the selected filter/search criteria.'}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                    ) : (
+                      filteredExpenses.map((exp) => (
+                        <tr key={exp.id}>
+                          <td>
+                            <div style={{ fontWeight: 600, color: 'var(--ink-deep)' }}>
+                              {new Date(exp.dateTime).toLocaleDateString()}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--steel)' }}>
+                              {new Date(exp.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ maxWidth: '300px' }}>
+                              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink-deep)', display: 'block' }}>
+                                {exp.expenseType}
+                              </span>
+                              <span style={{ fontSize: '13px', color: 'var(--charcoal)', lineHeight: '1.4' }}>
+                                {exp.motive}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: '15px', color: 'var(--ink-deep)' }}>
+                              ₹{exp.amount.toLocaleString()}
+                            </strong>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="brand-link"
+                              onClick={() =>
+                                handleOpenReceipt(
+                                  exp.receiptUrl,
+                                  exp.receiptName,
+                                  `${exp.expenseType} - ₹${exp.amount.toLocaleString()}`,
+                                  exp.amount
+                                )
+                              }
+                            >
+                              Inspect Receipt ↗
+                            </button>
+                          </td>
+                          <td>
+                            <span className={`brand-status-pill ${exp.status}`}>
+                              <span className="brand-status-dot" />
+                              {exp.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>
+                            {exp.adminNote ? (
+                              <div style={{ fontSize: '13px', color: 'var(--ink)' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--charcoal)' }}>
+                                  [{exp.reviewedBy || 'Admin'}]:
+                                </span>{' '}
+                                "{exp.adminNote}"
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '13px', color: 'var(--steel)', fontStyle: 'italic' }}>
+                                Awaiting administrator review
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
         )}
 
-        {/* TAB 2: Notifications Feed */}
+        {/* TAB: Notifications Feed */}
         {activeTab === 'notifications' && (
           <section className="brand-section-card">
             <div className="brand-section-header">
               <div className="brand-section-title-group">
-                <h2 className="brand-section-title">Disbursement & Review Alerts</h2>
+                <h2 className="brand-section-title">Disbursement & Mention Alerts</h2>
                 <p className="brand-section-desc">
-                  Status updates regarding approvals and payment disbursements.
+                  Status updates regarding approvals, @mentions, meetings, and payment disbursements.
                 </p>
               </div>
 
@@ -481,7 +551,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {notifications.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '48px', color: 'var(--slate)' }}>
-                  No active alerts. You will receive notifications here when your claims are approved or reviewed.
+                  No active alerts. You will receive notifications here when your claims are reviewed, when colleagues mention you, or when call links are posted.
                 </div>
               ) : (
                 notifications.map((n) => (
@@ -490,7 +560,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
                     style={{
                       padding: '14px 18px',
                       backgroundColor: 'var(--surface-soft)',
-                      border: '1px solid var(--surface-hairline)',
+                      border: n.type === 'user_mention' ? '1px solid var(--color-primary)' : '1px solid var(--surface-hairline)',
                       borderRadius: 'var(--radius-lg)',
                       display: 'flex',
                       alignItems: 'flex-start',
@@ -499,7 +569,9 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ fontSize: '14px', marginTop: '2px', color: 'var(--color-primary)' }}>●</span>
+                      <span style={{ fontSize: '14px', marginTop: '2px', color: n.type === 'user_mention' ? 'var(--color-primary)' : 'var(--slate)' }}>
+                        {n.type === 'user_mention' ? '🔔' : n.type === 'meeting_call' ? '📹' : '●'}
+                      </span>
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)' }}>
                           {n.title} {!n.read && <span style={{ color: 'var(--color-primary)', marginLeft: '6px' }}>[NEW]</span>}
@@ -545,7 +617,7 @@ export const EmployeeDashboardPage: React.FC<EmployeeDashboardPageProps> = ({ cu
 
       {/* Footer */}
       <footer className="brand-footer">
-        <div>© 2026 Bla Expense Hub • Local Store Active</div>
+        <div>© 2026 Bla Expense Hub • Real-time Cloud Active</div>
         <div className="brand-footer-links">
           <Link to="/privacy" className="brand-footer-link">Privacy Policy</Link>
           <Link to="/terms" className="brand-footer-link">Terms of Service</Link>
