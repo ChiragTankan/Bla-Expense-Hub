@@ -27,6 +27,15 @@
       "role": "admin",
       "department": "Executive Leadership",
       "createdAt": "2026-08-30T00:00:00.000Z"
+    },
+    {
+      "id": "user",
+      "name": "Tester_1",
+      "email": "nmbzxr@gmail.com",
+      "password": "abc123",
+      "role": "non-admin",
+      "department": "Sales",
+      "createdAt": "2026-08-30T00:00:00.000Z"
     }
   ],
   "expenses": [],
