@@ -35,6 +35,10 @@ export const DirectMessagesView: React.FC<DirectMessagesViewProps> = ({ currentU
   }
 
   useEffect(() => {
+    storageService.pullFromSupabase().then(() => {
+      loadUsersAndDMs()
+      loadCurrentThread()
+    })
     loadUsersAndDMs()
   }, [])
 
@@ -99,55 +103,68 @@ export const DirectMessagesView: React.FC<DirectMessagesViewProps> = ({ currentU
             />
           </div>
 
-          {/* User List */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
             {filteredUsers.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--steel)', fontSize: '13px' }}>
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '13px', color: 'var(--slate)' }}>
                 No colleagues found.
               </div>
             ) : (
-              filteredUsers.map((u) => {
-                const unread = storageService.getUnreadDMCountForUser(currentUser.email, u.email)
-                const isSelected = selectedUser?.email === u.email
+              filteredUsers.map((user) => {
+                const isSelected = selectedUser?.email.toLowerCase() === user.email.toLowerCase()
+                const unreadCount = storageService.getUnreadDMCountForUser(currentUser.email, user.email)
 
                 return (
                   <button
-                    key={u.id}
+                    key={user.id}
                     type="button"
-                    onClick={() => setSelectedUser(u)}
+                    onClick={() => setSelectedUser(user)}
                     style={{
                       width: '100%',
-                      padding: '10px 12px',
+                      padding: '12px 14px',
                       borderRadius: 'var(--radius-lg)',
                       border: 'none',
                       backgroundColor: isSelected ? 'var(--surface-canvas)' : 'transparent',
-                      boxShadow: isSelected ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-                      cursor: 'pointer',
+                      boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.04)' : 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      cursor: 'pointer',
                       textAlign: 'left',
                       marginBottom: '4px',
                       transition: 'all 0.15s ease',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                      <div className="brand-flow-avatar" style={{ backgroundColor: isSelected ? 'var(--color-primary-soft)' : 'var(--surface-hairline)', color: isSelected ? 'var(--color-primary)' : 'var(--ink-deep)' }}>
-                        {u.name.slice(0, 2).toUpperCase()}
+                      <div
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: 'var(--radius-circle)',
+                          backgroundColor: isSelected ? 'var(--color-primary)' : 'var(--surface-hairline)',
+                          color: isSelected ? '#ffffff' : 'var(--ink-deep)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {user.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                          {u.name}
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink-deep)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {user.name}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--steel)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                          {u.department || (u.role === 'admin' ? 'Administrator' : 'Staff')}
+                        <div style={{ fontSize: '12px', color: 'var(--steel)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {user.department || user.role}
                         </div>
                       </div>
                     </div>
 
-                    {unread > 0 && (
-                      <span className="brand-badge-counter" style={{ flexShrink: 0 }}>
-                        {unread}
+                    {unreadCount > 0 && (
+                      <span className="brand-badge-counter">
+                        {unreadCount}
                       </span>
                     )}
                   </button>
@@ -157,138 +174,136 @@ export const DirectMessagesView: React.FC<DirectMessagesViewProps> = ({ currentU
           </div>
         </div>
 
-        {/* Right Chat Pane */}
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, backgroundColor: 'var(--surface-canvas)' }}>
-          {selectedUser ? (
-            <>
-              {/* Chat Header */}
-              <div
-                style={{
-                  padding: '14px 20px',
-                  borderBottom: '1px solid var(--surface-hairline)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: 'var(--surface-canvas)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div className="brand-flow-avatar" style={{ backgroundColor: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
-                    {selectedUser.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink-deep)' }}>
-                      {selectedUser.name}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--slate)' }}>
-                      {selectedUser.email} • {selectedUser.department || (selectedUser.role === 'admin' ? 'Administrator' : 'Operations')}
-                    </div>
-                  </div>
+        {/* Chat Pane */}
+        {selectedUser ? (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, backgroundColor: 'var(--surface-canvas)' }}>
+            {/* Header */}
+            <div
+              style={{
+                padding: '16px 24px',
+                borderBottom: '1px solid var(--surface-hairline)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: 'var(--radius-circle)',
+                    backgroundColor: 'var(--color-primary-soft)',
+                    color: 'var(--color-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {selectedUser.name.slice(0, 2).toUpperCase()}
                 </div>
-
-                <div className="brand-status-pill approved" style={{ fontSize: '11px' }}>
-                  <span className="brand-status-dot" />
-                  <span>ONLINE</span>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink-deep)' }}>
+                    {selectedUser.name}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--slate)' }}>
+                    {selectedUser.email} • {selectedUser.department || 'Operations'} ({selectedUser.role.toUpperCase()})
+                  </div>
                 </div>
               </div>
 
-              {/* Message Thread */}
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  backgroundColor: 'var(--surface-soft)',
-                }}
-              >
-                {messages.length === 0 ? (
-                  <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--slate)', maxWidth: '360px' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink-deep)', marginBottom: '4px' }}>
-                      Start a private direct conversation
-                    </div>
-                    <div style={{ fontSize: '12px' }}>
-                      Messages between you and {selectedUser.name} are delivered securely in real-time. You can type @ to tag users.
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((m) => {
-                    const isMe = m.senderEmail.toLowerCase() === currentUser.email.toLowerCase()
+              <div className="brand-user-role-badge" style={{ fontSize: '12px' }}>
+                <span className="brand-status-dot" style={{ color: 'var(--state-success)' }} />
+                <span>Active Cloud Thread</span>
+              </div>
+            </div>
 
-                    return (
+            {/* Messages Thread */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {messages.length === 0 ? (
+                <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--slate)' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '8px' }}>💬</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ink-deep)' }}>
+                    Direct message with {selectedUser.name}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--steel)', marginTop: '4px' }}>
+                    Type a message below to start a private conversation. Email notifications are dispatched automatically.
+                  </div>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMine = msg.senderEmail.toLowerCase() === currentUser.email.toLowerCase()
+
+                  return (
+                    <div
+                      key={msg.id}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: isMine ? 'flex-end' : 'flex-start',
+                      }}
+                    >
                       <div
-                        key={m.id}
                         style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: isMe ? 'flex-end' : 'flex-start',
-                          maxWidth: '75%',
-                          alignSelf: isMe ? 'flex-end' : 'flex-start',
+                          maxWidth: '70%',
+                          padding: '12px 16px',
+                          borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                          backgroundColor: isMine ? 'var(--color-primary)' : 'var(--surface-soft)',
+                          color: isMine ? '#ffffff' : 'var(--ink-deep)',
+                          fontSize: '14px',
+                          lineHeight: '1.45',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                         }}
                       >
-                        <div
-                          style={{
-                            padding: '10px 16px',
-                            borderRadius: isMe ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
-                            backgroundColor: isMe ? 'var(--color-primary)' : 'var(--surface-canvas)',
-                            color: isMe ? '#ffffff' : 'var(--ink-deep)',
-                            border: isMe ? 'none' : '1px solid var(--surface-hairline)',
-                            fontSize: '14px',
-                            lineHeight: 1.5,
-                            wordBreak: 'break-word',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                          }}
-                        >
-                          {m.content}
-                        </div>
-                        <span style={{ fontSize: '10px', color: 'var(--steel)', marginTop: '4px', padding: '0 4px' }}>
-                          {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        {msg.content}
                       </div>
-                    )
-                  })
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Message Composer */}
-              <form
-                onSubmit={handleSendMessage}
-                style={{
-                  padding: '14px 20px',
-                  borderTop: '1px solid var(--surface-hairline)',
-                  display: 'flex',
-                  gap: '10px',
-                  backgroundColor: 'var(--surface-canvas)',
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder={`Message ${selectedUser.name}... (Type @ to mention)`}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  className="brand-input"
-                  style={{ flex: 1, height: '42px', fontSize: '14px' }}
-                />
-                <button
-                  type="submit"
-                  className="brand-btn-cobalt brand-btn-sm"
-                  disabled={!inputText.trim()}
-                  style={{ height: '42px', padding: '0 22px' }}
-                >
-                  Send ↗
-                </button>
-              </form>
-            </>
-          ) : (
-            <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--slate)' }}>
-              Select a colleague from the left directory to start messaging.
+                      <span style={{ fontSize: '11px', color: 'var(--steel)', marginTop: '4px', padding: '0 4px' }}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={messagesEndRef} />
             </div>
-          )}
-        </div>
+
+            {/* Composer */}
+            <form
+              onSubmit={handleSendMessage}
+              style={{
+                padding: '16px 24px',
+                borderTop: '1px solid var(--surface-hairline)',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'center',
+                backgroundColor: 'var(--surface-canvas)',
+              }}
+            >
+              <input
+                type="text"
+                placeholder={`Message ${selectedUser.name}... (type @name to tag)`}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                className="brand-input"
+                style={{ flex: 1 }}
+              />
+              <button
+                type="submit"
+                disabled={!inputText.trim()}
+                className="brand-btn-cobalt"
+                style={{ width: 'auto', padding: '10px 24px' }}
+              >
+                Send
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--slate)' }}>
+            Select a colleague to view messages.
+          </div>
+        )}
       </div>
     </div>
   )

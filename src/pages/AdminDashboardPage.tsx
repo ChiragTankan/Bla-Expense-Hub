@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { User, ExpenseRequest, SystemNotification } from '../types'
 import storageService from '../services/storageService'
+import emailService, { type EmailDispatchRecord } from '../services/emailService'
 import { useAuth } from '../context/AuthContext'
 import { AddEmployeeModal } from '../components/AddEmployeeModal'
 import { ReviewExpenseModal } from '../components/ReviewExpenseModal'
@@ -25,12 +26,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
   const [appFilter, setAppFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showEmailLogs, setShowEmailLogs] = useState(false)
 
   const [expenses, setExpenses] = useState<ExpenseRequest[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [notifications, setNotifications] = useState<SystemNotification[]>([])
+  const [emailLogs, setEmailLogs] = useState<EmailDispatchRecord[]>([])
   const [actionAlert, setActionAlert] = useState<string | null>(null)
   const [unreadDMsCount, setUnreadDMsCount] = useState(0)
+  const [dailyUpdatesCount, setDailyUpdatesCount] = useState(0)
+  const [activeCallsCount, setActiveCallsCount] = useState(0)
 
   // Modals state
   const [isAddEmpOpen, setIsAddEmpOpen] = useState(false)
@@ -54,6 +59,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
     setUsers(storageService.getUsers())
     setNotifications(storageService.getNotifications(currentUser.email, currentUser.role))
     setUnreadDMsCount(storageService.getUnreadDMCountForUser(currentUser.email))
+    setDailyUpdatesCount(storageService.getDailyUpdates().length)
+    setActiveCallsCount(storageService.getAdminCalls().length)
+    setEmailLogs(emailService.getDispatchLogs())
   }
 
   useEffect(() => {
@@ -87,6 +95,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
   const handleSelectTab = (tab: TabType) => {
     setActiveTab(tab)
     setIsMobileMenuOpen(false)
+  }
+
+  const handleMarkNotifRead = (notifId: string) => {
+    storageService.markNotificationAsRead(notifId)
+    loadData()
   }
 
   // Filtered Applications
@@ -127,42 +140,48 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
               className={`brand-nav-link ${activeTab === 'applications' ? 'active' : ''}`}
               onClick={() => handleSelectTab('applications')}
             >
-              Applications {pendingCount > 0 && <span className="brand-badge-counter">{pendingCount}</span>}
+              <span>Applications</span>
+              {pendingCount > 0 && <span className="brand-badge-counter">{pendingCount}</span>}
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'dms' ? 'active' : ''}`}
               onClick={() => handleSelectTab('dms')}
             >
-              DMs {unreadDMsCount > 0 && <span className="brand-badge-counter">{unreadDMsCount}</span>}
+              <span>DMs</span>
+              {unreadDMsCount > 0 && <span className="brand-badge-counter">{unreadDMsCount}</span>}
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'updates' ? 'active' : ''}`}
               onClick={() => handleSelectTab('updates')}
             >
-              Daily Updates
+              <span>Daily Updates</span>
+              {dailyUpdatesCount > 0 && <span className="brand-badge-counter" style={{ backgroundColor: 'var(--charcoal)' }}>{dailyUpdatesCount}</span>}
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'calls' ? 'active' : ''}`}
               onClick={() => handleSelectTab('calls')}
             >
-              Calls
+              <span>Calls</span>
+              {activeCallsCount > 0 && <span className="brand-badge-counter" style={{ backgroundColor: 'var(--state-success)' }}>{activeCallsCount}</span>}
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'employees' ? 'active' : ''}`}
               onClick={() => handleSelectTab('employees')}
             >
-              Staff ({totalEmployeesCount})
+              <span>Staff</span>
+              <span className="brand-badge-counter" style={{ backgroundColor: 'var(--surface-hairline)', color: 'var(--ink-deep)' }}>{totalEmployeesCount}</span>
             </button>
             <button
               type="button"
               className={`brand-nav-link ${activeTab === 'notifications' ? 'active' : ''}`}
               onClick={() => handleSelectTab('notifications')}
             >
-              Alerts {unreadNotifs > 0 && <span className="brand-badge-counter">{unreadNotifs}</span>}
+              <span>Alerts</span>
+              {unreadNotifs > 0 && <span className="brand-badge-counter">{unreadNotifs}</span>}
             </button>
           </nav>
         </div>
@@ -236,6 +255,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                 onClick={() => handleSelectTab('updates')}
               >
                 <span>Daily Updates (Group)</span>
+                {dailyUpdatesCount > 0 && <span className="brand-badge-counter">{dailyUpdatesCount}</span>}
               </button>
               <button
                 type="button"
@@ -243,6 +263,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                 onClick={() => handleSelectTab('calls')}
               >
                 <span>Admin & Team Calls</span>
+                {activeCallsCount > 0 && <span className="brand-badge-counter" style={{ backgroundColor: 'var(--state-success)' }}>{activeCallsCount}</span>}
               </button>
               <button
                 type="button"
@@ -634,60 +655,142 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                 </p>
               </div>
 
-              <button
-                type="button"
-                className="brand-btn-secondary brand-btn-sm"
-                onClick={() => {
-                  storageService.markAllNotificationsAsRead(currentUser.email, currentUser.role)
-                  loadData()
-                  setActionAlert('All notifications marked as read.')
-                  setTimeout(() => setActionAlert(null), 3000)
-                }}
-              >
-                Mark All Read
-              </button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="brand-btn-secondary brand-btn-sm"
+                  onClick={() => setShowEmailLogs(!showEmailLogs)}
+                >
+                  {showEmailLogs ? 'View Alerts Feed' : `📧 Email Dispatch Logs (${emailLogs.length})`}
+                </button>
+                <button
+                  type="button"
+                  className="brand-btn-secondary brand-btn-sm"
+                  onClick={() => {
+                    storageService.markAllNotificationsAsRead(currentUser.email, currentUser.role)
+                    loadData()
+                    setActionAlert('All notifications marked as read.')
+                    setTimeout(() => setActionAlert(null), 3000)
+                  }}
+                >
+                  Mark All Read
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {notifications.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--slate)' }}>
-                  No notifications recorded yet. Incoming expense claims, @mentions, and call invites will appear here.
+            {/* Email Dispatch Logs Sub-view */}
+            {showEmailLogs ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--slate)', marginBottom: '4px' }}>
+                  Live delivery audit trail of automated notification emails dispatched to employee emails.
                 </div>
-              ) : (
-                notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    style={{
-                      padding: '14px 18px',
-                      backgroundColor: 'var(--surface-soft)',
-                      border: n.type === 'user_mention' ? '1px solid var(--color-primary)' : '1px solid var(--surface-hairline)',
-                      borderRadius: 'var(--radius-lg)',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: '14px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ fontSize: '14px', marginTop: '2px', color: n.type === 'user_mention' ? 'var(--color-primary)' : 'var(--slate)' }}>
-                        {n.type === 'user_mention' ? '🔔' : n.type === 'meeting_call' ? '📹' : '●'}
-                      </span>
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)' }}>
-                          {n.title} {!n.read && <span style={{ color: 'var(--color-primary)', marginLeft: '6px' }}>[NEW]</span>}
+                {emailLogs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '36px', color: 'var(--slate)' }}>
+                    No outgoing emails dispatched yet.
+                  </div>
+                ) : (
+                  emailLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      style={{
+                        padding: '14px 18px',
+                        backgroundColor: 'var(--surface-soft)',
+                        border: '1px solid var(--surface-hairline)',
+                        borderRadius: 'var(--radius-lg)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '14px' }}>📧</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink-deep)' }}>
+                            To: {log.to}
+                          </span>
                         </div>
-                        <div style={{ fontSize: '14px', color: 'var(--charcoal)', marginTop: '4px' }}>
-                          {n.message}
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--steel)', marginTop: '4px' }}>
-                          {new Date(n.timestamp).toLocaleString()}
-                        </div>
+                        <span className="brand-status-pill approved" style={{ fontSize: '10px' }}>
+                          <span className="brand-status-dot" />
+                          {log.status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                        Subject: {log.subject}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--charcoal)', whiteSpace: 'pre-wrap', backgroundColor: 'var(--surface-canvas)', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--surface-hairline-soft)' }}>
+                        {log.body}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--steel)' }}>
+                        Dispatched: {new Date(log.timestamp).toLocaleString()}
                       </div>
                     </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              /* Notifications Stream with Click-to-Read */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {notifications.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: 'var(--slate)' }}>
+                    No notifications recorded yet. Incoming expense claims, @mentions, and call invites will appear here.
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleMarkNotifRead(n.id)}
+                      style={{
+                        padding: '14px 18px',
+                        backgroundColor: n.read ? 'var(--surface-canvas)' : 'var(--surface-soft)',
+                        border: n.read
+                          ? '1px solid var(--surface-hairline)'
+                          : n.type === 'user_mention'
+                          ? '1px solid var(--color-primary)'
+                          : '1px solid var(--surface-hairline)',
+                        borderRadius: 'var(--radius-lg)',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: '14px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <span style={{ fontSize: '14px', marginTop: '2px', color: !n.read && n.type === 'user_mention' ? 'var(--color-primary)' : 'var(--slate)' }}>
+                          {n.type === 'user_mention' ? '🔔' : n.type === 'meeting_call' ? '📹' : '●'}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: n.read ? 600 : 700, color: 'var(--ink-deep)' }}>
+                            {n.title} {!n.read && <span style={{ color: 'var(--color-primary)', marginLeft: '6px' }}>[NEW]</span>}
+                          </div>
+                          <div style={{ fontSize: '14px', color: n.read ? 'var(--slate)' : 'var(--charcoal)', marginTop: '4px' }}>
+                            {n.message}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--steel)', marginTop: '4px' }}>
+                            {new Date(n.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {!n.read && (
+                        <button
+                          type="button"
+                          className="brand-link"
+                          style={{ fontSize: '12px', whiteSpace: 'nowrap' }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleMarkNotifRead(n.id)
+                          }}
+                        >
+                          Mark Read
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </section>
         )}
       </main>
@@ -698,7 +801,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
         onClose={() => setIsAddEmpOpen(false)}
         onEmployeeAdded={() => {
           loadData()
-          setActionAlert('New employee account provisioned in cloud store.')
+          setActionAlert('New employee account provisioned in cloud store & welcome email dispatched.')
           setTimeout(() => setActionAlert(null), 4000)
         }}
       />
@@ -710,7 +813,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
         adminUser={currentUser}
         onUpdated={() => {
           loadData()
-          setActionAlert('Disbursement decision finalized and employee alert dispatched.')
+          setActionAlert('Disbursement decision finalized and email notification sent to employee.')
           setTimeout(() => setActionAlert(null), 4000)
         }}
         onViewReceipt={handleOpenReceipt}
@@ -728,7 +831,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
 
       {/* Footer */}
       <footer className="brand-footer">
-        <div>© 2026 Bla Expense Hub • Real-time Cloud Active</div>
+        <div>© 2026 Bla Expense Hub • Supabase Cloud Active</div>
         <div className="brand-footer-links">
           <Link to="/privacy" className="brand-footer-link">Privacy Policy</Link>
           <Link to="/terms" className="brand-footer-link">Terms of Service</Link>

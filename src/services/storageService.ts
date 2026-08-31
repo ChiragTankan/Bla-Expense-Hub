@@ -12,6 +12,7 @@ import type {
 } from '../types'
 import initialData from '../data/initialStore.json'
 import { supabaseClient, SUPABASE_CONFIG } from './supabaseClient'
+import { emailService } from './emailService'
 
 const STORAGE_KEY = 'bla_expense_hub_cloud_v3'
 const SESSION_KEY = 'bla_active_session_user_v3'
@@ -30,6 +31,7 @@ type RealtimeListener = (event: { type: string; payload?: unknown }) => void
 
 class StorageService {
   private listeners: Set<RealtimeListener> = new Set()
+  private isSyncing = false
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -46,6 +48,14 @@ class StorageService {
           this.notifySubscribers({ type: 'STORE_UPDATED' })
         }
       })
+
+      // Initial cloud pull
+      this.pullFromSupabase()
+
+      // Background cloud poll every 6 seconds for multi-device sync
+      setInterval(() => {
+        this.pullFromSupabase()
+      }, 6000)
     }
   }
 
@@ -78,7 +88,83 @@ class StorageService {
     }
   }
 
-  // ================= Supabase Info =================
+  // ================= Supabase Cloud Sync =================
+  public async pullFromSupabase(): Promise<void> {
+    if (this.isSyncing) return
+    this.isSyncing = true
+
+    try {
+      const [remoteDMs, remoteUpdates, remoteCalls, remoteExpenses, remoteUsers] = await Promise.all([
+        supabaseClient.fetchTable<DirectMessage>('direct_messages'),
+        supabaseClient.fetchTable<DailyUpdate>('daily_updates'),
+        supabaseClient.fetchTable<AdminCall>('admin_calls'),
+        supabaseClient.fetchTable<ExpenseRequest>('expenses'),
+        supabaseClient.fetchTable<User>('users'),
+      ])
+
+      const store = this.getStore()
+      let hasChanges = false
+
+      if (remoteDMs && remoteDMs.length > 0) {
+        const localIds = new Set(store.directMessages.map((d) => d.id))
+        remoteDMs.forEach((rdm) => {
+          if (!localIds.has(rdm.id)) {
+            store.directMessages.push(rdm)
+            hasChanges = true
+          }
+        })
+      }
+
+      if (remoteUpdates && remoteUpdates.length > 0) {
+        const localIds = new Set(store.dailyUpdates.map((u) => u.id))
+        remoteUpdates.forEach((ru) => {
+          if (!localIds.has(ru.id)) {
+            store.dailyUpdates.unshift(ru)
+            hasChanges = true
+          }
+        })
+      }
+
+      if (remoteCalls && remoteCalls.length > 0) {
+        const localIds = new Set(store.adminCalls.map((c) => c.id))
+        remoteCalls.forEach((rc) => {
+          if (!localIds.has(rc.id)) {
+            store.adminCalls.unshift(rc)
+            hasChanges = true
+          }
+        })
+      }
+
+      if (remoteExpenses && remoteExpenses.length > 0) {
+        const localIds = new Set(store.expenses.map((e) => e.id))
+        remoteExpenses.forEach((re) => {
+          if (!localIds.has(re.id)) {
+            store.expenses.unshift(re)
+            hasChanges = true
+          }
+        })
+      }
+
+      if (remoteUsers && remoteUsers.length > 0) {
+        const localEmails = new Set(store.users.map((u) => u.email.toLowerCase()))
+        remoteUsers.forEach((ru) => {
+          if (!localEmails.has(ru.email.toLowerCase())) {
+            store.users.push(ru)
+            hasChanges = true
+          }
+        })
+      }
+
+      if (hasChanges) {
+        this.saveStore(store, true)
+      }
+    } catch (e) {
+      console.warn('Supabase cloud pull sync status:', e)
+    } finally {
+      this.isSyncing = false
+    }
+  }
+
   public getSupabaseInfo() {
     return {
       connected: true,
@@ -126,7 +212,7 @@ class StorageService {
     }
   }
 
-  // ================= @Mentions Processor =================
+  // ================= @Mentions Processor & Email Dispatcher =================
   private detectAndNotifyMentions(
     content: string,
     sender: User,
@@ -136,7 +222,6 @@ class StorageService {
     const store = this.getStore()
     const allUsers = store.users
 
-    // Match patterns like @username, @name, @email, or @Firstname
     const mentionRegex = /@([a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)?)/g
     const matches = Array.from(content.matchAll(mentionRegex))
 
@@ -145,7 +230,7 @@ class StorageService {
     matches.forEach((match) => {
       const tagText = match[1].toLowerCase().trim()
       allUsers.forEach((u) => {
-        if (u.email.toLowerCase() === sender.email.toLowerCase()) return // don't notify self
+        if (u.email.toLowerCase() === sender.email.toLowerCase()) return
 
         const matchEmail = u.email.toLowerCase().includes(tagText)
         const matchName = u.name.toLowerCase().includes(tagText)
@@ -157,9 +242,8 @@ class StorageService {
       })
     })
 
-    // Dispatch special mention alerts
     mentionedEmails.forEach((email) => {
-      store.notifications.unshift({
+      const notif: SystemNotification = {
         id: `notif-mention-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         recipientEmail: email,
         type: 'user_mention',
@@ -169,7 +253,18 @@ class StorageService {
         read: false,
         linkId,
         senderName: sender.name,
-      })
+      }
+      store.notifications.unshift(notif)
+
+      // Dispatch automated email to the mentioned employee
+      emailService.sendNotificationEmail(
+        email,
+        `🔔 [Mention Alert] ${sender.name} tagged you in ${contextTitle}`,
+        `${sender.name} mentioned you:\n\n"${content}"\n\nLog in to Bla Expense Hub to view and respond.`,
+        'user_mention'
+      )
+
+      supabaseClient.insertRow('notifications', notif)
     })
 
     if (mentionedEmails.size > 0) {
@@ -240,7 +335,7 @@ class StorageService {
     store.users.push(newUser)
 
     // Notify admins about the new employee addition
-    store.notifications.unshift({
+    const adminNotif: SystemNotification = {
       id: `notif-${Date.now()}`,
       recipientEmail: 'admin',
       type: 'employee_created',
@@ -248,9 +343,21 @@ class StorageService {
       message: `${newUser.name} (${newUser.email}) was provisioned for ${newUser.department}.`,
       timestamp: new Date().toISOString(),
       read: false,
-    })
+    }
+    store.notifications.unshift(adminNotif)
+
+    // Send welcome onboarding email to employee email
+    emailService.sendNotificationEmail(
+      newUser.email,
+      `Welcome to Bla Expense Hub - Account Provisioned`,
+      `Hello ${newUser.name},\n\nYour account for ${newUser.department} has been provisioned.\nYour Login ID: ${newUser.email}\nYour Assigned Password: ${newUser.password}\n\nAccess the portal: https://bla-expense-hub.vercel.app/`,
+      'employee_created'
+    )
 
     this.saveStore(store)
+    supabaseClient.insertRow('users', newUser)
+    supabaseClient.insertRow('notifications', adminNotif)
+
     return { success: true, user: newUser }
   }
 
@@ -290,8 +397,7 @@ class StorageService {
 
     store.directMessages.push(newDM)
 
-    // Create a real-time notification for recipient
-    store.notifications.unshift({
+    const notif: SystemNotification = {
       id: `notif-dm-${Date.now()}`,
       recipientEmail: recipient.email.toLowerCase().trim(),
       type: 'direct_message',
@@ -301,9 +407,22 @@ class StorageService {
       read: false,
       linkId: sender.email,
       senderName: sender.name,
-    })
+    }
+    store.notifications.unshift(notif)
+
+    // Dispatch email alert to the recipient's email address
+    emailService.sendNotificationEmail(
+      recipient.email,
+      `New Direct Message from ${sender.name}`,
+      `${sender.name} sent you a direct message:\n\n"${content}"\n\nReply directly in Bla Expense Hub.`,
+      'direct_message'
+    )
 
     this.saveStore(store)
+
+    // Sync to Supabase cloud table
+    supabaseClient.insertRow('direct_messages', newDM)
+    supabaseClient.insertRow('notifications', notif)
 
     // Check for @mentions in DM
     this.detectAndNotifyMentions(content, sender, `Direct Message with ${sender.name}`)
@@ -385,12 +504,12 @@ class StorageService {
 
     store.dailyUpdates.unshift(newUpdate)
 
-    // Broadcast notification to all other users
+    // Broadcast notification and emails to all other users
     const otherUsers = store.users.filter(
       (u) => u.email.toLowerCase() !== author.email.toLowerCase()
     )
     otherUsers.forEach((u) => {
-      store.notifications.unshift({
+      const notif: SystemNotification = {
         id: `notif-update-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         recipientEmail: u.email.toLowerCase(),
         type: 'daily_update',
@@ -400,10 +519,20 @@ class StorageService {
         read: false,
         linkId: newUpdate.id,
         senderName: author.name,
-      })
+      }
+      store.notifications.unshift(notif)
+      supabaseClient.insertRow('notifications', notif)
+
+      emailService.sendNotificationEmail(
+        u.email,
+        `Daily Work Update: ${author.name} (${author.department || 'Team'})`,
+        `${author.name} posted a daily work update [${tag}]:\n\n"${content}"\n\nView on Bla Expense Hub.`,
+        'daily_update'
+      )
     })
 
     this.saveStore(store)
+    supabaseClient.insertRow('daily_updates', newUpdate)
 
     // Process @mentions in daily update
     this.detectAndNotifyMentions(content, author, 'Daily Updates Group Chat', newUpdate.id)
@@ -426,6 +555,7 @@ class StorageService {
         update.likes.push(cleanEmail)
       }
       this.saveStore(store)
+      supabaseClient.updateRow('daily_updates', 'id', updateId, { likes: update.likes })
     }
   }
 
@@ -466,12 +596,11 @@ class StorageService {
 
     store.adminCalls.unshift(newCall)
 
-    // Notify all other company members about this video meeting invitation
     const otherUsers = store.users.filter(
       (u) => u.email.toLowerCase() !== host.email.toLowerCase()
     )
     otherUsers.forEach((u) => {
-      store.notifications.unshift({
+      const notif: SystemNotification = {
         id: `notif-call-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         recipientEmail: u.email.toLowerCase(),
         type: 'meeting_call',
@@ -481,12 +610,21 @@ class StorageService {
         read: false,
         linkId: newCall.meetingUrl,
         senderName: host.name,
-      })
+      }
+      store.notifications.unshift(notif)
+      supabaseClient.insertRow('notifications', notif)
+
+      emailService.sendNotificationEmail(
+        u.email,
+        `📹 Meeting Invitation: ${title} (${platform})`,
+        `${host.name} invited you to join a video call.\nTopic: ${title}\nAgenda: ${description}\nLink: ${meetingUrl}\nSchedule: ${scheduledTime}`,
+        'meeting_call'
+      )
     })
 
     this.saveStore(store)
+    supabaseClient.insertRow('admin_calls', newCall)
 
-    // Process @mentions in call description
     this.detectAndNotifyMentions(description, host, `Meeting Call: ${title}`, newCall.id)
 
     this.broadcast({ type: 'NEW_ADMIN_CALL', payload: newCall })
@@ -497,6 +635,7 @@ class StorageService {
     const store = this.getStore()
     store.adminCalls = (store.adminCalls || []).filter((c) => c.id !== callId)
     this.saveStore(store)
+    supabaseClient.deleteRow('admin_calls', 'id', callId)
   }
 
   // ================= Expenses =================
@@ -544,8 +683,7 @@ class StorageService {
 
     store.expenses.unshift(newExpense)
 
-    // Notify Admins in real-time
-    store.notifications.unshift({
+    const adminNotif: SystemNotification = {
       id: `notif-${Date.now()}`,
       recipientEmail: 'admin',
       type: 'expense_submitted',
@@ -554,9 +692,24 @@ class StorageService {
       timestamp: now,
       read: false,
       linkId: newExpense.id,
+    }
+    store.notifications.unshift(adminNotif)
+
+    // Notify admins via email
+    const admins = store.users.filter((u) => u.role === 'admin')
+    admins.forEach((admin) => {
+      emailService.sendNotificationEmail(
+        admin.email,
+        `New Expense Claim: ₹${data.amount.toLocaleString()} from ${data.employeeName}`,
+        `${data.employeeName} submitted a claim for ${data.expenseType} (₹${data.amount.toLocaleString()}).\nMotive: ${data.motive}\n\nReview in Admin Panel: https://bla-expense-hub.vercel.app/dashboard`,
+        'expense_submitted'
+      )
     })
 
     this.saveStore(store)
+    supabaseClient.insertRow('expenses', newExpense)
+    supabaseClient.insertRow('notifications', adminNotif)
+
     return newExpense
   }
 
@@ -580,26 +733,39 @@ class StorageService {
 
     store.expenses[index] = expense
 
-    // Send targeted confirmation notification to the employee
-    store.notifications.unshift({
+    const empNotif: SystemNotification = {
       id: `notif-${Date.now()}`,
       recipientEmail: expense.employeeEmail,
       type: status === 'approved' ? 'expense_approved' : 'expense_rejected',
       title: status === 'approved' ? 'Expense Claim Approved & Disbursed' : 'Expense Claim Rejected',
       message:
         status === 'approved'
-          ? `Your claim for ₹${expense.amount.toLocaleString()} (${expense.expenseType}) was approved by ${adminName || 'Admin'}. Disbursement remark: "${adminNote || 'Processed'}"`
+          ? `Your claim for ₹${expense.amount.toLocaleString()} (${expense.expenseType}) was approved by ${adminName || 'Admin'}. Remark: "${adminNote || 'Processed'}"`
           : `Your claim for ₹${expense.amount.toLocaleString()} (${expense.expenseType}) was rejected. Reason: "${adminNote || 'No reason specified'}"`,
       timestamp: now,
       read: false,
       linkId: expense.id,
-    })
+    }
+    store.notifications.unshift(empNotif)
+
+    // Dispatch approval / rejection email directly to employee email
+    emailService.sendNotificationEmail(
+      expense.employeeEmail,
+      status === 'approved'
+        ? `Expense Claim Approved: ₹${expense.amount.toLocaleString()} (${expense.expenseType})`
+        : `Expense Claim Rejected: ₹${expense.amount.toLocaleString()}`,
+      `Hello ${expense.employeeName},\n\nYour claim for ₹${expense.amount.toLocaleString()} (${expense.expenseType}) has been ${status.toUpperCase()} by ${adminName || 'Admin'}.\n\nAdministrator Remarks: "${adminNote || 'No remarks'}"\n\nLog in: https://bla-expense-hub.vercel.app/dashboard`,
+      status === 'approved' ? 'expense_approved' : 'expense_rejected'
+    )
 
     this.saveStore(store)
+    supabaseClient.updateRow('expenses', 'id', expenseId, expense)
+    supabaseClient.insertRow('notifications', empNotif)
+
     return expense
   }
 
-  // ================= Notifications =================
+  // ================= Notifications Management =================
   public getNotifications(userEmail: string, role: 'admin' | 'employee'): SystemNotification[] {
     const store = this.getStore()
     const cleanEmail = userEmail.toLowerCase().trim()
@@ -609,6 +775,18 @@ class StorageService {
       }
       return n.recipientEmail.toLowerCase().trim() === cleanEmail
     })
+  }
+
+  public markNotificationAsRead(notifId: string): void {
+    const store = this.getStore()
+    store.notifications = (store.notifications || []).map((n) => {
+      if (n.id === notifId) {
+        return { ...n, read: true }
+      }
+      return n
+    })
+    this.saveStore(store)
+    supabaseClient.updateRow('notifications', 'id', notifId, { read: true })
   }
 
   public markAllNotificationsAsRead(userEmail: string, role: 'admin' | 'employee'): void {
@@ -624,6 +802,11 @@ class StorageService {
       return n
     })
     this.saveStore(store)
+  }
+
+  // ================= Tab Counters =================
+  public getUnreadNotificationsCount(userEmail: string, role: 'admin' | 'employee'): number {
+    return this.getNotifications(userEmail, role).filter((n) => !n.read).length
   }
 
   // ================= Backup & Export =================
