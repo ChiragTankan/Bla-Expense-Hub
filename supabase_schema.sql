@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS public.daily_updates (
   likes JSONB DEFAULT '[]'::jsonb
 );
 
--- 4. ADMIN & TEAM CALLS (GOOGLE MEET COLLABORATION) TABLE
+-- 4. ADMIN & TEAM CALLS (GOOGLE MEET COLLABORATION & PAST MEETS) TABLE
 CREATE TABLE IF NOT EXISTS public.admin_calls (
   id TEXT PRIMARY KEY,
   host_id TEXT NOT NULL,
@@ -67,7 +67,10 @@ CREATE TABLE IF NOT EXISTS public.admin_calls (
   platform TEXT DEFAULT 'Google Meet',
   scheduled_time TEXT DEFAULT 'Active Now',
   status TEXT DEFAULT 'active',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  ended_by TEXT,
+  mom_note TEXT
 );
 
 -- 5. EXPENSE APPLICATIONS & CLAIMS TABLE

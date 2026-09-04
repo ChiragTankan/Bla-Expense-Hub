@@ -606,7 +606,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                     <th>Login Email (ID)</th>
                     <th>Role</th>
                     <th>Department</th>
-                    <th>Assigned Password</th>
+                    <th>Account Status</th>
                     <th>Registered On</th>
                   </tr>
                 </thead>
@@ -629,9 +629,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ currentU
                       </td>
                       <td>{u.department || 'General Operations'}</td>
                       <td>
-                        <code style={{ fontSize: '13px', color: 'var(--ink-deep)', backgroundColor: 'var(--surface-soft)', padding: '4px 8px', borderRadius: 'var(--radius-sm)' }}>
-                          {u.password}
-                        </code>
+                        <span className="brand-status-pill approved" style={{ fontSize: '11px' }}>
+                          <span className="brand-status-dot" />
+                          Cloud Verified
+                        </span>
                       </td>
                       <td style={{ fontSize: '12px', color: 'var(--steel)' }}>
                         {new Date(u.createdAt).toLocaleDateString()}

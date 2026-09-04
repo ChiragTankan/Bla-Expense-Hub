@@ -30,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
-    const user = storageService.login(email, password)
+    const user = await storageService.login(email, password)
     if (!user) {
       return {
         success: false,

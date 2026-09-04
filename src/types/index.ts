@@ -110,6 +110,9 @@ export interface AdminCall {
   scheduledTime: string
   status: 'active' | 'scheduled' | 'ended'
   createdAt: string
+  endedAt?: string
+  endedBy?: string
+  momNote?: string // Minutes of Meeting note
   mentions?: string[]
 }
 

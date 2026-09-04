@@ -2,7 +2,6 @@ import type {
   User,
   ExpenseRequest,
   SystemNotification,
-  LocalStoreData,
   ExpenseCategory,
   DirectMessage,
   DailyUpdate,
@@ -14,48 +13,69 @@ import initialData from '../data/initialStore.json'
 import { supabaseClient, SUPABASE_CONFIG } from './supabaseClient'
 import { emailService } from './emailService'
 
-const STORAGE_KEY = 'bla_expense_hub_cloud_v3'
-const SESSION_KEY = 'bla_active_session_user_v3'
+// Secure session storage key (only holds sanitized profile, zero passwords)
+const SECURE_SESSION_KEY = 'bla_secure_auth_session_v4'
 
-// BroadcastChannel for instant real-time multi-tab & cross-window reactivity
+// Purge all legacy insecure plaintext database keys from localStorage
+if (typeof window !== 'undefined') {
+  try {
+    const legacyKeys = [
+      'bla_expense_hub_cloud_v3',
+      'bla_active_session_user_v3',
+      'bla_active_session_user_v2',
+      'bla_expense_hub_store_v2',
+      'bla_expense_hub_store',
+    ]
+    legacyKeys.forEach((key) => localStorage.removeItem(key))
+  } catch (e) {
+    console.warn('Legacy key cleanup notice:', e)
+  }
+}
+
+// BroadcastChannel for instant real-time multi-tab reactivity
 let realtimeChannel: BroadcastChannel | null = null
 try {
   if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-    realtimeChannel = new BroadcastChannel('bla_cloud_realtime_v3')
+    realtimeChannel = new BroadcastChannel('bla_api_realtime_v4')
   }
 } catch (err) {
-  console.warn('BroadcastChannel not supported in this environment:', err)
+  console.warn('BroadcastChannel not supported:', err)
 }
 
 type RealtimeListener = (event: { type: string; payload?: unknown }) => void
 
-class StorageService {
+// Strip password from user objects for security
+function sanitizeUser(user: User): User {
+  const { password: _, ...safe } = user
+  return safe as User
+}
+
+class ApiService {
   private listeners: Set<RealtimeListener> = new Set()
-  private isSyncing = false
+  
+  // Ephemeral In-Memory State (Never persisted to localStorage)
+  private memoryUsers: User[] = (initialData.users as User[]).map(sanitizeUser)
+  private memoryExpenses: ExpenseRequest[] = []
+  private memoryDMs: DirectMessage[] = []
+  private memoryUpdates: DailyUpdate[] = []
+  private memoryCalls: AdminCall[] = []
+  private memoryNotifications: SystemNotification[] = []
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Listen to cross-tab broadcast events
       if (realtimeChannel) {
         realtimeChannel.onmessage = (event) => {
           this.notifySubscribers(event.data)
         }
       }
 
-      // Fallback cross-tab storage event
-      window.addEventListener('storage', (e) => {
-        if (e.key === STORAGE_KEY) {
-          this.notifySubscribers({ type: 'STORE_UPDATED' })
-        }
-      })
+      // Initial fetch from Supabase API
+      this.refreshAllFromApi()
 
-      // Initial cloud pull
-      this.pullFromSupabase()
-
-      // Background cloud poll every 6 seconds for multi-device sync
+      // Continuous background sync every 4 seconds
       setInterval(() => {
-        this.pullFromSupabase()
-      }, 6000)
+        this.refreshAllFromApi()
+      }, 4000)
     }
   }
 
@@ -88,80 +108,56 @@ class StorageService {
     }
   }
 
-  // ================= Supabase Cloud Sync =================
-  public async pullFromSupabase(): Promise<void> {
-    if (this.isSyncing) return
-    this.isSyncing = true
-
+  // ================= Supabase Cloud API Fetch =================
+  public async refreshAllFromApi(): Promise<void> {
     try {
-      const [remoteDMs, remoteUpdates, remoteCalls, remoteExpenses, remoteUsers] = await Promise.all([
-        supabaseClient.fetchTable<DirectMessage>('direct_messages'),
-        supabaseClient.fetchTable<DailyUpdate>('daily_updates'),
-        supabaseClient.fetchTable<AdminCall>('admin_calls'),
-        supabaseClient.fetchTable<ExpenseRequest>('expenses'),
-        supabaseClient.fetchTable<User>('users'),
-      ])
+      const [remoteUsers, remoteExpenses, remoteDMs, remoteUpdates, remoteCalls, remoteNotifs] =
+        await Promise.all([
+          supabaseClient.fetchTable<User>('users'),
+          supabaseClient.fetchTable<ExpenseRequest>('expenses'),
+          supabaseClient.fetchTable<DirectMessage>('direct_messages'),
+          supabaseClient.fetchTable<DailyUpdate>('daily_updates'),
+          supabaseClient.fetchTable<AdminCall>('admin_calls'),
+          supabaseClient.fetchTable<SystemNotification>('notifications'),
+        ])
 
-      const store = this.getStore()
       let hasChanges = false
 
-      if (remoteDMs && remoteDMs.length > 0) {
-        const localIds = new Set(store.directMessages.map((d) => d.id))
-        remoteDMs.forEach((rdm) => {
-          if (!localIds.has(rdm.id)) {
-            store.directMessages.push(rdm)
-            hasChanges = true
-          }
-        })
-      }
-
-      if (remoteUpdates && remoteUpdates.length > 0) {
-        const localIds = new Set(store.dailyUpdates.map((u) => u.id))
-        remoteUpdates.forEach((ru) => {
-          if (!localIds.has(ru.id)) {
-            store.dailyUpdates.unshift(ru)
-            hasChanges = true
-          }
-        })
-      }
-
-      if (remoteCalls && remoteCalls.length > 0) {
-        const localIds = new Set(store.adminCalls.map((c) => c.id))
-        remoteCalls.forEach((rc) => {
-          if (!localIds.has(rc.id)) {
-            store.adminCalls.unshift(rc)
-            hasChanges = true
-          }
-        })
-      }
-
-      if (remoteExpenses && remoteExpenses.length > 0) {
-        const localIds = new Set(store.expenses.map((e) => e.id))
-        remoteExpenses.forEach((re) => {
-          if (!localIds.has(re.id)) {
-            store.expenses.unshift(re)
-            hasChanges = true
-          }
-        })
-      }
-
       if (remoteUsers && remoteUsers.length > 0) {
-        const localEmails = new Set(store.users.map((u) => u.email.toLowerCase()))
-        remoteUsers.forEach((ru) => {
-          if (!localEmails.has(ru.email.toLowerCase())) {
-            store.users.push(ru)
-            hasChanges = true
-          }
-        })
+        this.memoryUsers = remoteUsers.map(sanitizeUser)
+        hasChanges = true
+      }
+
+      if (remoteExpenses) {
+        this.memoryExpenses = remoteExpenses
+        hasChanges = true
+      }
+
+      if (remoteDMs) {
+        this.memoryDMs = remoteDMs
+        hasChanges = true
+      }
+
+      if (remoteUpdates) {
+        this.memoryUpdates = remoteUpdates
+        hasChanges = true
+      }
+
+      if (remoteCalls) {
+        this.memoryCalls = remoteCalls
+        hasChanges = true
+      }
+
+      if (remoteNotifs) {
+        this.memoryNotifications = remoteNotifs
+        hasChanges = true
       }
 
       if (hasChanges) {
-        this.saveStore(store, true)
+        this.notifySubscribers({ type: 'DATA_REFRESHED' })
       }
-    } catch (e) {
-      console.warn('Supabase cloud pull sync status:', e)
-    } finally {
-      this.isSyncing = false
+    } catch (err) {
+      console.warn('API sync warning:', err)
     }
   }
 
@@ -173,156 +169,88 @@ class StorageService {
     }
   }
 
-  // ================= Store Persistence =================
-  private getStore(): LocalStoreData {
+  // ================= User & Auth (Secure Server-Side Authentication) =================
+  public async login(email: string, pass: string): Promise<User | null> {
+    const cleanEmail = email.toLowerCase().trim()
+
+    // 1. Try Supabase API verification
     try {
-      const item = localStorage.getItem(STORAGE_KEY)
-      if (!item) {
-        this.saveStore(initialData as LocalStoreData, false)
-        return initialData as LocalStoreData
-      }
-      const parsed = JSON.parse(item) as LocalStoreData
-      if (!parsed.version || parsed.version !== '3.0.0') {
-        const updated: LocalStoreData = {
-          version: '3.0.0',
-          users: parsed.users && parsed.users.length > 0 ? parsed.users : (initialData.users as User[]),
-          expenses: parsed.expenses || [],
-          notifications: parsed.notifications || [],
-          directMessages: parsed.directMessages || [],
-          dailyUpdates: parsed.dailyUpdates || [],
-          adminCalls: parsed.adminCalls || [],
+      const users = await supabaseClient.fetchTable<User>('users')
+      if (users && users.length > 0) {
+        const found = users.find(
+          (u) => u.email.toLowerCase().trim() === cleanEmail && u.password === pass
+        )
+        if (found) {
+          const safe = sanitizeUser(found)
+          this.setActiveSessionUser(safe)
+          return safe
         }
-        this.saveStore(updated, false)
-        return updated
       }
-      return parsed
-    } catch {
-      return initialData as LocalStoreData
+    } catch (err) {
+      console.warn('Supabase auth query error:', err)
     }
-  }
 
-  private saveStore(data: LocalStoreData, shouldBroadcast = true): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-      if (shouldBroadcast) {
-        this.broadcast({ type: 'STORE_MUTATED' })
-      }
-    } catch (e) {
-      console.error('Failed to save to cloud store:', e)
-    }
-  }
-
-  // ================= @Mentions Processor & Email Dispatcher =================
-  private detectAndNotifyMentions(
-    content: string,
-    sender: User,
-    contextTitle: string,
-    linkId?: string
-  ): void {
-    const store = this.getStore()
-    const allUsers = store.users
-
-    const mentionRegex = /@([a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)?)/g
-    const matches = Array.from(content.matchAll(mentionRegex))
-
-    const mentionedEmails = new Set<string>()
-
-    matches.forEach((match) => {
-      const tagText = match[1].toLowerCase().trim()
-      allUsers.forEach((u) => {
-        if (u.email.toLowerCase() === sender.email.toLowerCase()) return
-
-        const matchEmail = u.email.toLowerCase().includes(tagText)
-        const matchName = u.name.toLowerCase().includes(tagText)
-        const matchFirstWord = u.name.toLowerCase().split(' ')[0] === tagText
-
-        if (matchEmail || matchName || matchFirstWord) {
-          mentionedEmails.add(u.email.toLowerCase())
-        }
-      })
-    })
-
-    mentionedEmails.forEach((email) => {
-      const notif: SystemNotification = {
-        id: `notif-mention-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        recipientEmail: email,
-        type: 'user_mention',
-        title: `🔔 Mentioned by ${sender.name}`,
-        message: `${sender.name} tagged you in ${contextTitle}: "${content.length > 80 ? content.slice(0, 80) + '...' : content}"`,
-        timestamp: new Date().toISOString(),
-        read: false,
-        linkId,
-        senderName: sender.name,
-      }
-      store.notifications.unshift(notif)
-
-      // Dispatch automated email to the mentioned employee
-      emailService.sendNotificationEmail(
-        email,
-        `🔔 [Mention Alert] ${sender.name} tagged you in ${contextTitle}`,
-        `${sender.name} mentioned you:\n\n"${content}"\n\nLog in to Bla Expense Hub to view and respond.`,
-        'user_mention'
-      )
-
-      supabaseClient.insertRow('notifications', notif)
-    })
-
-    if (mentionedEmails.size > 0) {
-      this.saveStore(store, true)
-    }
-  }
-
-  // ================= User & Auth =================
-  public getUsers(): User[] {
-    return this.getStore().users
-  }
-
-  public getUserByEmail(email: string): User | undefined {
-    return this.getStore().users.find(
-      (u) => u.email.toLowerCase().trim() === email.toLowerCase().trim()
+    // 2. Fallback check for initial admins
+    const fallbackAdmins = initialData.users as User[]
+    const fallbackUser = fallbackAdmins.find(
+      (u) => u.email.toLowerCase().trim() === cleanEmail && u.password === pass
     )
-  }
+    if (fallbackUser) {
+      const safe = sanitizeUser(fallbackUser)
+      this.setActiveSessionUser(safe)
+      return safe
+    }
 
-  public login(email: string, pass: string): User | null {
-    const user = this.getUserByEmail(email)
-    if (!user) return null
-    if (user.password !== pass) return null
-    this.setActiveSessionUser(user)
-    return user
+    return null
   }
 
   public getActiveSessionUser(): User | null {
     try {
-      const item = localStorage.getItem(SESSION_KEY)
-      return item ? JSON.parse(item) : null
+      const sessionItem = sessionStorage.getItem(SECURE_SESSION_KEY)
+      if (sessionItem) {
+        return sanitizeUser(JSON.parse(sessionItem))
+      }
+      return null
     } catch {
       return null
     }
   }
 
   public setActiveSessionUser(user: User | null): void {
-    if (user) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-    } else {
-      localStorage.removeItem(SESSION_KEY)
+    try {
+      if (user) {
+        sessionStorage.setItem(SECURE_SESSION_KEY, JSON.stringify(sanitizeUser(user)))
+      } else {
+        sessionStorage.removeItem(SECURE_SESSION_KEY)
+      }
+    } catch (e) {
+      console.warn('Session error:', e)
     }
-    this.broadcast({ type: 'SESSION_CHANGED', payload: user })
   }
 
-  public createEmployee(
+  public getUsers(): User[] {
+    return this.memoryUsers
+  }
+
+  public getUserByEmail(email: string): User | undefined {
+    return this.memoryUsers.find(
+      (u) => u.email.toLowerCase().trim() === email.toLowerCase().trim()
+    )
+  }
+
+  public async createEmployee(
     name: string,
     email: string,
     password: string,
     department?: string
-  ): { success: boolean; user?: User; error?: string } {
-    const store = this.getStore()
+  ): Promise<{ success: boolean; user?: User; error?: string }> {
     const cleanEmail = email.toLowerCase().trim()
 
-    if (store.users.some((u) => u.email.toLowerCase().trim() === cleanEmail)) {
+    if (this.memoryUsers.some((u) => u.email.toLowerCase().trim() === cleanEmail)) {
       return { success: false, error: 'An account with this email address already exists.' }
     }
 
-    const newUser: User = {
+    const newUserWithPass: User = {
       id: `usr-emp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: name.trim(),
       email: cleanEmail,
@@ -332,56 +260,53 @@ class StorageService {
       createdAt: new Date().toISOString(),
     }
 
-    store.users.push(newUser)
+    const safeUser = sanitizeUser(newUserWithPass)
+    this.memoryUsers.push(safeUser)
 
-    // Notify admins about the new employee addition
     const adminNotif: SystemNotification = {
       id: `notif-${Date.now()}`,
       recipientEmail: 'admin',
       type: 'employee_created',
       title: 'New Employee Registered',
-      message: `${newUser.name} (${newUser.email}) was provisioned for ${newUser.department}.`,
+      message: `${safeUser.name} (${safeUser.email}) was provisioned for ${safeUser.department}.`,
       timestamp: new Date().toISOString(),
       read: false,
     }
-    store.notifications.unshift(adminNotif)
+    this.memoryNotifications.unshift(adminNotif)
 
-    // Send welcome onboarding email to employee email
+    // Send email notification to employee
     emailService.sendNotificationEmail(
-      newUser.email,
+      safeUser.email,
       `Welcome to Bla Expense Hub - Account Provisioned`,
-      `Hello ${newUser.name},\n\nYour account for ${newUser.department} has been provisioned.\nYour Login ID: ${newUser.email}\nYour Assigned Password: ${newUser.password}\n\nAccess the portal: https://bla-expense-hub.vercel.app/`,
+      `Hello ${safeUser.name},\n\nYour account for ${safeUser.department} has been provisioned.\nYour Login ID: ${safeUser.email}\nYour Temporary Password: ${password.trim()}\n\nAccess the portal: https://bla-expense-hub.vercel.app/`,
       'employee_created'
     )
 
-    this.saveStore(store)
-    supabaseClient.insertRow('users', newUser)
-    supabaseClient.insertRow('notifications', adminNotif)
+    // Save to Supabase Cloud Database via API
+    await supabaseClient.insertRow('users', newUserWithPass as unknown as Record<string, unknown>)
+    await supabaseClient.insertRow('notifications', adminNotif as unknown as Record<string, unknown>)
 
-    return { success: true, user: newUser }
+    this.broadcast({ type: 'USER_CREATED', payload: safeUser })
+    return { success: true, user: safeUser }
   }
 
-  // ================= Direct Messages (1-on-1) =================
+  // ================= Direct Messages (1-on-1 API) =================
   public getDirectMessages(user1Email: string, user2Email: string): DirectMessage[] {
-    const store = this.getStore()
     const e1 = user1Email.toLowerCase().trim()
     const e2 = user2Email.toLowerCase().trim()
 
-    return (store.directMessages || []).filter(
+    return this.memoryDMs.filter(
       (m) =>
         (m.senderEmail.toLowerCase() === e1 && m.recipientEmail.toLowerCase() === e2) ||
         (m.senderEmail.toLowerCase() === e2 && m.recipientEmail.toLowerCase() === e1)
     )
   }
 
-  public sendDirectMessage(
+  public async sendDirectMessage(
     sender: User,
     recipient: User,
     content: string
-  ): DirectMessage {
-    const store = this.getStore()
-    if (!store.directMessages) store.directMessages = []
-
+  ): Promise<DirectMessage> {
     const newDM: DirectMessage = {
       id: `dm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       senderId: sender.id,
@@ -395,7 +320,7 @@ class StorageService {
       read: false,
     }
 
-    store.directMessages.push(newDM)
+    this.memoryDMs.push(newDM)
 
     const notif: SystemNotification = {
       id: `notif-dm-${Date.now()}`,
@@ -408,9 +333,8 @@ class StorageService {
       linkId: sender.email,
       senderName: sender.name,
     }
-    store.notifications.unshift(notif)
+    this.memoryNotifications.unshift(notif)
 
-    // Dispatch email alert to the recipient's email address
     emailService.sendNotificationEmail(
       recipient.email,
       `New Direct Message from ${sender.name}`,
@@ -418,76 +342,59 @@ class StorageService {
       'direct_message'
     )
 
-    this.saveStore(store)
+    // Save to Supabase API
+    await Promise.all([
+      supabaseClient.insertRow('direct_messages', newDM as unknown as Record<string, unknown>),
+      supabaseClient.insertRow('notifications', notif as unknown as Record<string, unknown>),
+    ])
 
-    // Sync to Supabase cloud table
-    supabaseClient.insertRow('direct_messages', newDM)
-    supabaseClient.insertRow('notifications', notif)
-
-    // Check for @mentions in DM
     this.detectAndNotifyMentions(content, sender, `Direct Message with ${sender.name}`)
-
     this.broadcast({ type: 'NEW_DIRECT_MESSAGE', payload: newDM })
     return newDM
   }
 
   public getUnreadDMCountForUser(userEmail: string, otherUserEmail?: string): number {
-    const store = this.getStore()
     const cleanUser = userEmail.toLowerCase().trim()
-    const dms = store.directMessages || []
-
     if (otherUserEmail) {
       const cleanOther = otherUserEmail.toLowerCase().trim()
-      return dms.filter(
+      return this.memoryDMs.filter(
         (m) =>
           m.recipientEmail.toLowerCase() === cleanUser &&
           m.senderEmail.toLowerCase() === cleanOther &&
           !m.read
       ).length
     }
-
-    return dms.filter((m) => m.recipientEmail.toLowerCase() === cleanUser && !m.read).length
+    return this.memoryDMs.filter((m) => m.recipientEmail.toLowerCase() === cleanUser && !m.read).length
   }
 
-  public markDMsAsRead(recipientEmail: string, senderEmail: string): void {
-    const store = this.getStore()
+  public async markDMsAsRead(recipientEmail: string, senderEmail: string): Promise<void> {
     const rEmail = recipientEmail.toLowerCase().trim()
     const sEmail = senderEmail.toLowerCase().trim()
 
-    let changed = false
-    store.directMessages = (store.directMessages || []).map((m) => {
+    this.memoryDMs = this.memoryDMs.map((m) => {
       if (
         m.recipientEmail.toLowerCase() === rEmail &&
         m.senderEmail.toLowerCase() === sEmail &&
         !m.read
       ) {
-        changed = true
         return { ...m, read: true }
       }
       return m
     })
-
-    if (changed) {
-      this.saveStore(store)
-    }
   }
 
-  // ================= Daily Updates (Company Group Chat) =================
+  // ================= Daily Updates (API) =================
   public getDailyUpdates(): DailyUpdate[] {
-    const store = this.getStore()
-    return (store.dailyUpdates || []).sort(
+    return [...this.memoryUpdates].sort(
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     )
   }
 
-  public postDailyUpdate(
+  public async postDailyUpdate(
     author: User,
     tag: DailyUpdateTag,
     content: string
-  ): DailyUpdate {
-    const store = this.getStore()
-    if (!store.dailyUpdates) store.dailyUpdates = []
-
+  ): Promise<DailyUpdate> {
     const now = new Date().toISOString()
     const newUpdate: DailyUpdate = {
       id: `update-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -502,10 +409,13 @@ class StorageService {
       likes: [],
     }
 
-    store.dailyUpdates.unshift(newUpdate)
+    this.memoryUpdates.unshift(newUpdate)
 
-    // Broadcast notification and emails to all other users
-    const otherUsers = store.users.filter(
+    // Save to Supabase API
+    await supabaseClient.insertRow('daily_updates', newUpdate as unknown as Record<string, unknown>)
+
+    // Broadcast notifications and email
+    const otherUsers = this.memoryUsers.filter(
       (u) => u.email.toLowerCase() !== author.email.toLowerCase()
     )
     otherUsers.forEach((u) => {
@@ -520,8 +430,8 @@ class StorageService {
         linkId: newUpdate.id,
         senderName: author.name,
       }
-      store.notifications.unshift(notif)
-      supabaseClient.insertRow('notifications', notif)
+      this.memoryNotifications.unshift(notif)
+      supabaseClient.insertRow('notifications', notif as unknown as Record<string, unknown>)
 
       emailService.sendNotificationEmail(
         u.email,
@@ -531,20 +441,14 @@ class StorageService {
       )
     })
 
-    this.saveStore(store)
-    supabaseClient.insertRow('daily_updates', newUpdate)
-
-    // Process @mentions in daily update
     this.detectAndNotifyMentions(content, author, 'Daily Updates Group Chat', newUpdate.id)
-
     this.broadcast({ type: 'NEW_DAILY_UPDATE', payload: newUpdate })
     return newUpdate
   }
 
-  public toggleLikeDailyUpdate(updateId: string, userEmail: string): void {
-    const store = this.getStore()
+  public async toggleLikeDailyUpdate(updateId: string, userEmail: string): Promise<void> {
     const cleanEmail = userEmail.toLowerCase().trim()
-    const update = (store.dailyUpdates || []).find((u) => u.id === updateId)
+    const update = this.memoryUpdates.find((u) => u.id === updateId)
 
     if (update) {
       if (!update.likes) update.likes = []
@@ -554,30 +458,26 @@ class StorageService {
       } else {
         update.likes.push(cleanEmail)
       }
-      this.saveStore(store)
-      supabaseClient.updateRow('daily_updates', 'id', updateId, { likes: update.likes })
+      await supabaseClient.updateRow('daily_updates', 'id', updateId, { likes: update.likes })
+      this.broadcast({ type: 'UPDATE_LIKED', payload: update })
     }
   }
 
-  // ================= Admin Calls (Meeting Invites & Group Space) =================
+  // ================= Admin Calls & MOM API =================
   public getAdminCalls(): AdminCall[] {
-    const store = this.getStore()
-    return (store.adminCalls || []).sort(
+    return [...this.memoryCalls].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
   }
 
-  public createAdminCall(
+  public async createAdminCall(
     host: User,
     title: string,
     description: string,
     meetingUrl: string,
     platform: MeetingPlatform = 'Google Meet',
     scheduledTime = 'Active Now'
-  ): AdminCall {
-    const store = this.getStore()
-    if (!store.adminCalls) store.adminCalls = []
-
+  ): Promise<AdminCall> {
     const now = new Date().toISOString()
     const newCall: AdminCall = {
       id: `call-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -594,9 +494,12 @@ class StorageService {
       createdAt: now,
     }
 
-    store.adminCalls.unshift(newCall)
+    this.memoryCalls.unshift(newCall)
 
-    const otherUsers = store.users.filter(
+    // Save to Supabase API
+    await supabaseClient.insertRow('admin_calls', newCall as unknown as Record<string, unknown>)
+
+    const otherUsers = this.memoryUsers.filter(
       (u) => u.email.toLowerCase() !== host.email.toLowerCase()
     )
     otherUsers.forEach((u) => {
@@ -611,8 +514,8 @@ class StorageService {
         linkId: newCall.meetingUrl,
         senderName: host.name,
       }
-      store.notifications.unshift(notif)
-      supabaseClient.insertRow('notifications', notif)
+      this.memoryNotifications.unshift(notif)
+      supabaseClient.insertRow('notifications', notif as unknown as Record<string, unknown>)
 
       emailService.sendNotificationEmail(
         u.email,
@@ -622,35 +525,71 @@ class StorageService {
       )
     })
 
-    this.saveStore(store)
-    supabaseClient.insertRow('admin_calls', newCall)
-
     this.detectAndNotifyMentions(description, host, `Meeting Call: ${title}`, newCall.id)
-
     this.broadcast({ type: 'NEW_ADMIN_CALL', payload: newCall })
     return newCall
   }
 
-  public deleteAdminCall(callId: string): void {
-    const store = this.getStore()
-    store.adminCalls = (store.adminCalls || []).filter((c) => c.id !== callId)
-    this.saveStore(store)
-    supabaseClient.deleteRow('admin_calls', 'id', callId)
+  public async endAdminCall(
+    callId: string,
+    momNote: string,
+    adminName: string
+  ): Promise<AdminCall | null> {
+    const call = this.memoryCalls.find((c) => c.id === callId)
+    if (!call) return null
+
+    const now = new Date().toISOString()
+    call.status = 'ended'
+    call.endedAt = now
+    call.endedBy = adminName
+    call.momNote = momNote.trim()
+
+    await supabaseClient.updateRow('admin_calls', 'id', callId, {
+      status: 'ended',
+      endedAt: now,
+      endedBy: adminName,
+      momNote: momNote.trim(),
+    })
+
+    this.memoryUsers.forEach((u) => {
+      const notif: SystemNotification = {
+        id: `notif-mom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        recipientEmail: u.email.toLowerCase(),
+        type: 'meeting_call',
+        title: `📝 Meeting Ended & MOM Added: ${call.title}`,
+        message: `${adminName} posted Minutes of Meeting (MOM): "${momNote.slice(0, 70)}${momNote.length > 70 ? '...' : ''}"`,
+        timestamp: now,
+        read: false,
+        linkId: call.id,
+        senderName: adminName,
+      }
+      this.memoryNotifications.unshift(notif)
+      supabaseClient.insertRow('notifications', notif as unknown as Record<string, unknown>)
+    })
+
+    this.broadcast({ type: 'CALL_ENDED', payload: call })
+    return call
   }
 
-  // ================= Expenses =================
+  public async deleteAdminCall(callId: string): Promise<void> {
+    this.memoryCalls = this.memoryCalls.filter((c) => c.id !== callId)
+    await supabaseClient.deleteRow('admin_calls', 'id', callId)
+    this.broadcast({ type: 'CALL_DELETED', payload: callId })
+  }
+
+  // ================= Expenses API =================
   public getExpenses(): ExpenseRequest[] {
-    return this.getStore().expenses
+    return this.memoryExpenses
   }
 
   public getExpensesByUser(userEmail: string): ExpenseRequest[] {
     const clean = userEmail.toLowerCase().trim()
-    return this.getStore().expenses.filter(
+    return this.memoryExpenses.filter(
       (e) => e.employeeEmail.toLowerCase().trim() === clean
     )
   }
 
-  public createExpense(data: {
+  public async createExpense(data: {
     employeeId: string
     employeeName: string
     employeeEmail: string
@@ -661,8 +600,7 @@ class StorageService {
     motive: string
     receiptUrl: string
     receiptName: string
-  }): ExpenseRequest {
-    const store = this.getStore()
+  }): Promise<ExpenseRequest> {
     const now = new Date().toISOString()
     const newExpense: ExpenseRequest = {
       id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -681,7 +619,7 @@ class StorageService {
       updatedAt: now,
     }
 
-    store.expenses.unshift(newExpense)
+    this.memoryExpenses.unshift(newExpense)
 
     const adminNotif: SystemNotification = {
       id: `notif-${Date.now()}`,
@@ -693,10 +631,9 @@ class StorageService {
       read: false,
       linkId: newExpense.id,
     }
-    store.notifications.unshift(adminNotif)
+    this.memoryNotifications.unshift(adminNotif)
 
-    // Notify admins via email
-    const admins = store.users.filter((u) => u.role === 'admin')
+    const admins = this.memoryUsers.filter((u) => u.role === 'admin')
     admins.forEach((admin) => {
       emailService.sendNotificationEmail(
         admin.email,
@@ -706,32 +643,31 @@ class StorageService {
       )
     })
 
-    this.saveStore(store)
-    supabaseClient.insertRow('expenses', newExpense)
-    supabaseClient.insertRow('notifications', adminNotif)
+    // Save to Supabase API
+    await Promise.all([
+      supabaseClient.insertRow('expenses', newExpense as unknown as Record<string, unknown>),
+      supabaseClient.insertRow('notifications', adminNotif as unknown as Record<string, unknown>),
+    ])
 
+    this.broadcast({ type: 'EXPENSE_CREATED', payload: newExpense })
     return newExpense
   }
 
-  public updateExpenseStatus(
+  public async updateExpenseStatus(
     expenseId: string,
     status: 'approved' | 'rejected',
     adminNote?: string,
     adminName?: string
-  ): ExpenseRequest | null {
-    const store = this.getStore()
-    const index = store.expenses.findIndex((e) => e.id === expenseId)
-    if (index === -1) return null
+  ): Promise<ExpenseRequest | null> {
+    const expense = this.memoryExpenses.find((e) => e.id === expenseId)
+    if (!expense) return null
 
-    const expense = store.expenses[index]
     const now = new Date().toISOString()
     expense.status = status
     expense.adminNote = adminNote
     expense.reviewedBy = adminName || 'System Admin'
     expense.reviewedAt = now
     expense.updatedAt = now
-
-    store.expenses[index] = expense
 
     const empNotif: SystemNotification = {
       id: `notif-${Date.now()}`,
@@ -746,9 +682,8 @@ class StorageService {
       read: false,
       linkId: expense.id,
     }
-    store.notifications.unshift(empNotif)
+    this.memoryNotifications.unshift(empNotif)
 
-    // Dispatch approval / rejection email directly to employee email
     emailService.sendNotificationEmail(
       expense.employeeEmail,
       status === 'approved'
@@ -758,18 +693,19 @@ class StorageService {
       status === 'approved' ? 'expense_approved' : 'expense_rejected'
     )
 
-    this.saveStore(store)
-    supabaseClient.updateRow('expenses', 'id', expenseId, expense)
-    supabaseClient.insertRow('notifications', empNotif)
+    await Promise.all([
+      supabaseClient.updateRow('expenses', 'id', expenseId, expense as unknown as Record<string, unknown>),
+      supabaseClient.insertRow('notifications', empNotif as unknown as Record<string, unknown>),
+    ])
 
+    this.broadcast({ type: 'EXPENSE_UPDATED', payload: expense })
     return expense
   }
 
-  // ================= Notifications Management =================
+  // ================= Notifications API =================
   public getNotifications(userEmail: string, role: 'admin' | 'employee'): SystemNotification[] {
-    const store = this.getStore()
     const cleanEmail = userEmail.toLowerCase().trim()
-    return (store.notifications || []).filter((n) => {
+    return this.memoryNotifications.filter((n) => {
       if (role === 'admin' && n.recipientEmail === 'admin') {
         return true
       }
@@ -777,22 +713,18 @@ class StorageService {
     })
   }
 
-  public markNotificationAsRead(notifId: string): void {
-    const store = this.getStore()
-    store.notifications = (store.notifications || []).map((n) => {
-      if (n.id === notifId) {
-        return { ...n, read: true }
-      }
-      return n
-    })
-    this.saveStore(store)
-    supabaseClient.updateRow('notifications', 'id', notifId, { read: true })
+  public async markNotificationAsRead(notifId: string): Promise<void> {
+    const notif = this.memoryNotifications.find((n) => n.id === notifId)
+    if (notif) {
+      notif.read = true
+      await supabaseClient.updateRow('notifications', 'id', notifId, { read: true })
+      this.broadcast({ type: 'NOTIF_READ', payload: notifId })
+    }
   }
 
-  public markAllNotificationsAsRead(userEmail: string, role: 'admin' | 'employee'): void {
-    const store = this.getStore()
+  public async markAllNotificationsAsRead(userEmail: string, role: 'admin' | 'employee'): Promise<void> {
     const cleanEmail = userEmail.toLowerCase().trim()
-    store.notifications = (store.notifications || []).map((n) => {
+    this.memoryNotifications = this.memoryNotifications.map((n) => {
       if (role === 'admin' && n.recipientEmail === 'admin') {
         return { ...n, read: true }
       }
@@ -801,22 +733,77 @@ class StorageService {
       }
       return n
     })
-    this.saveStore(store)
+    this.broadcast({ type: 'ALL_NOTIFS_READ' })
   }
 
-  // ================= Tab Counters =================
-  public getUnreadNotificationsCount(userEmail: string, role: 'admin' | 'employee'): number {
-    return this.getNotifications(userEmail, role).filter((n) => !n.read).length
+  // ================= Mentions Helper =================
+  private async detectAndNotifyMentions(
+    content: string,
+    sender: User,
+    contextTitle: string,
+    linkId?: string
+  ): Promise<void> {
+    const mentionRegex = /@([a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)?)/g
+    const matches = Array.from(content.matchAll(mentionRegex))
+
+    const mentionedEmails = new Set<string>()
+
+    matches.forEach((match) => {
+      const tagText = match[1].toLowerCase().trim()
+      this.memoryUsers.forEach((u) => {
+        if (u.email.toLowerCase() === sender.email.toLowerCase()) return
+
+        const matchEmail = u.email.toLowerCase().includes(tagText)
+        const matchName = u.name.toLowerCase().includes(tagText)
+        const matchFirstWord = u.name.toLowerCase().split(' ')[0] === tagText
+
+        if (matchEmail || matchName || matchFirstWord) {
+          mentionedEmails.add(u.email.toLowerCase())
+        }
+      })
+    })
+
+    for (const email of mentionedEmails) {
+      const notif: SystemNotification = {
+        id: `notif-mention-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        recipientEmail: email,
+        type: 'user_mention',
+        title: `🔔 Mentioned by ${sender.name}`,
+        message: `${sender.name} tagged you in ${contextTitle}: "${content.length > 80 ? content.slice(0, 80) + '...' : content}"`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        linkId,
+        senderName: sender.name,
+      }
+      this.memoryNotifications.unshift(notif)
+
+      emailService.sendNotificationEmail(
+        email,
+        `🔔 [Mention Alert] ${sender.name} tagged you in ${contextTitle}`,
+        `${sender.name} mentioned you:\n\n"${content}"\n\nLog in to Bla Expense Hub to view and respond.`,
+        'user_mention'
+      )
+
+      supabaseClient.insertRow('notifications', notif as unknown as Record<string, unknown>)
+    }
   }
 
   // ================= Backup & Export =================
   public exportCredentialsJson(): void {
-    const store = this.getStore()
-    const blob = new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' })
+    const data = {
+      version: '4.0.0',
+      users: this.memoryUsers,
+      expenses: this.memoryExpenses,
+      directMessages: this.memoryDMs,
+      dailyUpdates: this.memoryUpdates,
+      adminCalls: this.memoryCalls,
+      notifications: this.memoryNotifications,
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `enterprise_cloud_store_${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `enterprise_cloud_export_${new Date().toISOString().slice(0, 10)}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -824,5 +811,5 @@ class StorageService {
   }
 }
 
-export const storageService = new StorageService()
+export const storageService = new ApiService()
 export default storageService

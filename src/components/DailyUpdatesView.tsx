@@ -27,6 +27,9 @@ export const DailyUpdatesView: React.FC<DailyUpdatesViewProps> = ({ currentUser 
   }
 
   useEffect(() => {
+    storageService.pullFromSupabase().then(() => {
+      loadUpdates()
+    })
     loadUpdates()
   }, [])
 
