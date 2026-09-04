@@ -161,6 +161,10 @@ class ApiService {
     }
   }
 
+  public async pullFromSupabase(): Promise<void> {
+    return this.refreshAllFromApi()
+  }
+
   public getSupabaseInfo() {
     return {
       connected: true,

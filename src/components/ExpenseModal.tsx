@@ -59,7 +59,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
     }
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
 
@@ -81,24 +81,31 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
     setIsSubmitting(true)
 
-    setTimeout(() => {
-      storageService.createExpense({
+    try {
+      await storageService.createExpense({
         employeeId: currentUser.id,
         employeeName: currentUser.name,
         employeeEmail: currentUser.email,
         amount: numAmount,
         currency: 'INR',
         expenseType,
-        dateTime,
+        dateTime: new Date().toISOString(),
         motive: motive.trim(),
         receiptUrl,
         receiptName,
       })
 
       setIsSubmitting(false)
+      setAmount('')
+      setMotive('')
+      setReceiptName('')
+      setReceiptUrl('')
       onExpenseCreated()
       onClose()
-    }, 400)
+    } catch {
+      setIsSubmitting(false)
+      setError('An error occurred while submitting the expense claim.')
+    }
   }
 
   return (

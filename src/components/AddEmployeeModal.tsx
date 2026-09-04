@@ -31,7 +31,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
     setPassword(generated)
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
 
@@ -42,8 +42,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
 
     setIsSubmitting(true)
 
-    setTimeout(() => {
-      const res = storageService.createEmployee(name, email, password, department)
+    try {
+      const res = await storageService.createEmployee(name, email, password, department)
       setIsSubmitting(false)
 
       if (!res.success) {
@@ -53,7 +53,10 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
 
       onEmployeeAdded()
       onClose()
-    }, 350)
+    } catch {
+      setIsSubmitting(false)
+      setError('An error occurred while creating employee account.')
+    }
   }
 
   return (

@@ -6,15 +6,26 @@ export const SUPABASE_CONFIG = {
   url:
     (typeof import.meta !== 'undefined' &&
       import.meta.env &&
-      (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL)) ||
+      (import.meta.env.VITE_SUPABASE_URL ||
+        import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
+        import.meta.env.SUPABASE_URL)) ||
     'https://bbuupjdltzxddyjbqypy.supabase.co',
   anonKey:
     (typeof import.meta !== 'undefined' &&
       import.meta.env &&
       (import.meta.env.VITE_SUPABASE_ANON_KEY ||
         import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-        import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)) ||
+        import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+        import.meta.env.SUPABASE_PUBLISHABLE_KEY ||
+        import.meta.env.SUPABASE_SECRET_KEY)) ||
     'sb_publishable_uq7X9n2KvJYB5zSmCAkLAQ_torrsVXD',
+  secretKey:
+    (typeof import.meta !== 'undefined' &&
+      import.meta.env &&
+      (import.meta.env.SUPABASE_SECRET_KEY || import.meta.env.VITE_SUPABASE_SECRET_KEY)) ||
+    'sb_secret_D0m1p-1KVuBAMtVpIz6i7g_GGQjk9WR',
+  jwksUrl:
+    'https://bbuupjdltzxddyjbqypy.supabase.co/auth/v1/.well-known/jwks.json',
 }
 
 // Convert camelCase keys to snake_case for Supabase PostgreSQL tables
