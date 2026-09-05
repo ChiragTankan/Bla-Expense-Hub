@@ -1,7 +1,7 @@
 const Landing = () => {
   return (
     <div>
-      Error 404
+      Page not Found (404 Error)
     </div>
   )
 }
